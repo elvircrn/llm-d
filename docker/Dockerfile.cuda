@@ -67,7 +67,7 @@ ARG VLLM_USE_PRECOMPILED=1
 # ============================================================================
 # BUILD STAGE - Install build dependencies and create wheels
 # ============================================================================
-FROM nvcr.io/nvidia/cuda:${CUDA_MAJOR}.${CUDA_MINOR}.${CUDA_PATCH}-devel-${FINAL_BASE_IMAGE_SUFFIX} AS builder
+FROM nvcr.io/nvidia/cuda:${CUDA_MAJOR}.${CUDA_MINOR}.${CUDA_PATCH}-devel-${BUILD_BASE_IMAGE_SUFFIX} AS builder
 
 ARG CACHE_BUSTER
 RUN if [ -n "${CACHE_BUSTER}" ]; then \
@@ -80,7 +80,7 @@ ARG BUILD_BASE_IMAGE_SUFFIX
 ARG CUDA_MAJOR
 ARG CUDA_MINOR
 ARG CUDA_PATCH
-ARG PYTHON_VERSION=3.12
+ARG PYTHON_VERSION
 
 ARG NVSHMEM_VERSION
 
@@ -266,7 +266,7 @@ ARG CUDA_PATCH
 ARG TARGETOS
 ARG TARGETPLATFORM
 ARG FINAL_BASE_IMAGE_SUFFIX
-ARG PYTHON_VERSION=3.12
+ARG PYTHON_VERSION
 
 ARG NVSHMEM_VERSION
 ARG BUILD_NIXL_FROM_SOURCE
