@@ -9,8 +9,8 @@ ARG BASE_IMAGE_SUFFIX=ubi9
 # are not backwards compatible with OSes using earlier glibc versions.
 # Runtime stage can use newer Ubuntu (22.04) for updated dependencies.
 # See: https://github.com/vllm-project/vllm/blob/main/docker/Dockerfile#L18-L24
-ARG BUILD_BASE_IMAGE_SUFFIX=${BASE_IMAGE_SUFFIX}
 ARG FINAL_BASE_IMAGE_SUFFIX=${BASE_IMAGE_SUFFIX}
+ARG BUILD_BASE_IMAGE_SUFFIX=${FINAL_BASE_IMAGE_SUFFIX}
 
 ######################## SYSTEM CONFIGURATION ########################
 
