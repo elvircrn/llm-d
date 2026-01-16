@@ -67,7 +67,7 @@ ARG VLLM_USE_PRECOMPILED=1
 # ============================================================================
 # BUILD STAGE - Install build dependencies and create wheels
 # ============================================================================
-FROM nvcr.io/nvidia/cuda:${CUDA_MAJOR}.${CUDA_MINOR}.${CUDA_PATCH}-devel-${BUILD_BASE_IMAGE_SUFFIX} AS builder
+FROM nvcr.io/nvidia/cuda:${CUDA_MAJOR}.${CUDA_MINOR}.${CUDA_PATCH}-devel-ubuntu22.04 AS builder
 
 ARG CACHE_BUSTER
 RUN if [ -n "${CACHE_BUSTER}" ]; then \
