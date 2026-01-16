@@ -101,7 +101,7 @@ ENV LANG="C.UTF-8" \
     UV_INDEX_STRATEGY="unsafe-best-match" \
     UV_LINK_MODE="copy" \
     TORCH_CUDA_ARCH_LIST="7.0;7.5;8.0;8.6;8.9;9.0;9.0a;10.0;12.0+PTX" \
-    PYTHON_VERSION="${PYTHON_VERSION}" \
+    PYTHON_VERSION="3.12" \
     UV_TORCH_BACKEND="${UV_TORCH_BACKEND:-cu${CUDA_MAJOR}${CUDA_MINOR}}" \
     UV_BUILD_CONSTRAINT="/tmp/build-constraints.txt" \
     UV_CONSTRAINT="/tmp/constraints.txt" \
@@ -276,7 +276,7 @@ COPY docker/constraints.txt /tmp/constraints.txt
 
 ENV LANG="C.UTF-8" \
     LC_ALL="C.UTF-8" \
-    PYTHON_VERSION="${PYTHON_VERSION}" \
+    PYTHON_VERSION="3.12" \
     UV_TORCH_BACKEND="${UV_TORCH_BACKEND:-cu${CUDA_MAJOR}${CUDA_MINOR}}" \
     UV_CONSTRAINT="/tmp/constraints.txt" \
     VIRTUAL_ENV="/opt/vllm" \
@@ -287,7 +287,7 @@ ENV LANG="C.UTF-8" \
 
 ENV LD_LIBRARY_PATH="${EFA_PREFIX}/lib:${EFA_PREFIX}/lib64:\
 ${UCX_PREFIX}/lib:${UCX_PREFIX}/lib64:\
-/opt/vllm/lib64/python${PYTHON_VERSION}/site-packages/torch/lib:\
+/opt/vllm/lib64/python3.12/site-packages/torch/lib:\
 /usr/local/nvidia/lib:/usr/local/nvidia/lib64:${CUDA_HOME}/lib64:${CUDA_HOME}/compat:\
 /usr/local/lib:/usr/local/lib64:\
 ${NVSHMEM_DIR}/lib:${NVSHMEM_DIR}/lib64:\
