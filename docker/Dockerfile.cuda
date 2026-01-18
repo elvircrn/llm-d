@@ -80,7 +80,7 @@ ARG BUILD_BASE_IMAGE_SUFFIX=ubuntu22.04
 ARG CUDA_MAJOR
 ARG CUDA_MINOR
 ARG CUDA_PATCH
-ARG PYTHON_VERSION
+ARG PYTHON_VERSION="3.12"
 
 ARG NVSHMEM_VERSION
 
@@ -135,7 +135,7 @@ RUN --mount=type=secret,id=aws_access_key_id \
 # Install uv and setup Python virtual environment
 RUN export UV_INSTALL_DIR=/usr/local/bin && \
     curl -LsSf https://astral.sh/uv/install.sh | sh && \
-    uv venv /opt/vllm --python ${PYTHON_VERSION} && \
+    uv venv /opt/vllm --python 3.12 && \
     uv pip install --no-cache -U wheel meson-python ninja pybind11 build
 
 ENV NVSHMEM_DIR="/opt/nvshmem-${NVSHMEM_VERSION}" \
@@ -266,7 +266,7 @@ ARG CUDA_PATCH
 ARG TARGETOS
 ARG TARGETPLATFORM
 ARG FINAL_BASE_IMAGE_SUFFIX
-ARG PYTHON_VERSION
+ARG PYTHON_VERSION="3.12"
 
 ARG NVSHMEM_VERSION
 ARG BUILD_NIXL_FROM_SOURCE
@@ -301,7 +301,7 @@ ${LD_LIBRARY_PATH}" \
     CUDA_MINOR=${CUDA_MINOR}
 
 # LD_LIBRARY_PATH needs the torch path to apply proper linkers so as not to produce torch ABI missmatch
-ENV LD_LIBRARY_PATH="/opt/vllm/lib64/python${PYTHON_VERSION}/site-packages/torch/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/local/cuda/lib64:/usr/local/lib:/usr/local/lib64:${NVSHMEM_DIR}/lib:${LD_LIBRARY_PATH}"
+ENV LD_LIBRARY_PATH="/opt/vllm/lib64/python3.12/site-packages/torch/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/local/cuda/lib64:/usr/local/lib:/usr/local/lib64:${NVSHMEM_DIR}/lib:${LD_LIBRARY_PATH}"
 
 # Install runtime dependencies
 COPY docker/scripts/cuda/common/package-utils.sh /tmp/package-utils.sh
@@ -369,7 +369,7 @@ RUN if [ -d /opt/nixl/include ]; then \
 # Install uv and setup Python virtual environment
 RUN export UV_INSTALL_DIR=/usr/local/bin && \
     curl -LsSf https://astral.sh/uv/install.sh | sh && \
-    uv venv /opt/vllm --python ${PYTHON_VERSION} && \
+    uv venv /opt/vllm --python 3.12 && \
     rm -f /usr/bin/python3 /usr/bin/python3-config /usr/bin/pip && \
     ln -s /opt/vllm/bin/python3 /usr/bin/python3 && \
     ln -s /opt/vllm/bin/python3-config /usr/bin/python3-config && \
