@@ -181,7 +181,7 @@ RUN --mount=type=cache,target=/var/cache/git \
 ARG NVSHMEM_USE_GIT
 ARG NVSHMEM_REPO
 ARG NVSHMEM_VERSION
-ENV NVSHMEM_CUDA_ARCHITECTURES="100"
+ENV NVSHMEM_CUDA_ARCHITECTURES="90a;100"
 COPY docker/scripts/cuda/builder/build-nvshmem.sh /tmp/build-nvshmem.sh
 RUN --mount=type=cache,target=/var/cache/git \
     --mount=type=secret,id=aws_access_key_id \
