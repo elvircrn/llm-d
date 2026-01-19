@@ -102,6 +102,16 @@ echo "DEBUG: Installing packages: ${INSTALL_PACKAGES[*]}"
 # install all packages in one command with verbose output to prevent GHA timeouts
 # use flashinfer wheel index for jit-cache pre-built binaries
 CUDA_SHORT_VERSION="cu${CUDA_MAJOR}${CUDA_MINOR}"
+# Set specific environment variables for precompiled wheel
+export VLLM_PRECOMPILED_WHEEL_COMMIT="18d4e481d0ce8336f4e64da70f7b6076ad804971"
+export VLLM_MAIN_CUDA_VERSION="13.0"
+export VLLM_PRECOMPILED_WHEEL_VARIANT="cu130"
+export VLLM_USE_PRECOMPILED=1
+
+cd /opt/vllm-source && uv pip install -U -e . --torch-backend=cu130 --prerelease=allow \
+  --extra-index-url "https://flashinfer.ai/whl/${CUDA_SHORT_VERSION}"
+
+# Install other packages separately
 uv pip install -v "${INSTALL_PACKAGES[@]}" \
   --extra-index-url "https://flashinfer.ai/whl/${CUDA_SHORT_VERSION}"
 

@@ -4,22 +4,22 @@ ARG CUDA_PATCH=0
 ARG TARGETOS=rhel
 ARG BASE_IMAGE_SUFFIX=ubi9
 
-# Important: For Ubuntu builds, we use an older version (20.04) in the build stage
+# Important: For Ubuntu builds, we use an older version (22.04) in the build stage
 # to maintain broad glibc compatibility. Binaries built with newer glibc versions
 # are not backwards compatible with OSes using earlier glibc versions.
-# Runtime stage can use newer Ubuntu (22.04) for updated dependencies.
+# Runtime stage can use newer Ubuntu (24.04) for updated dependencies.
 # See: https://github.com/vllm-project/vllm/blob/main/docker/Dockerfile#L18-L24
 ARG BUILD_BASE_IMAGE_SUFFIX=ubuntu22.04
-ARG FINAL_BASE_IMAGE_SUFFIX=${BASE_IMAGE_SUFFIX}
+ARG FINAL_BASE_IMAGE_SUFFIX=ubuntu24.04
 
 ######################## SYSTEM CONFIGURATION ########################
 
 ARG CUDA_MAJOR=13
 ARG CUDA_MINOR=0
 ARG CUDA_PATCH=0
-ARG TARGETOS=rhel
+ARG TARGETOS=ubuntu
 ARG TARGETPLATFORM=linux/arm64
-ARG BASE_IMAGE_SUFFIX=ubi9
+ARG BASE_IMAGE_SUFFIX=ubuntu24.04
 ARG PYTHON_VERSION=3.12
 
 ARG USE_SCCACHE=true
@@ -61,6 +61,7 @@ ARG FLASHINFER_VERSION="v0.5.3"
 ARG VLLM_REPO="https://github.com/neuralmagic/vllm.git"
 ARG VLLM_COMMIT_SHA="nvl72"
 ARG VLLM_PRECOMPILED_WHEEL_COMMIT="18d4e481d0ce8336f4e64da70f7b6076ad804971"
+ARG VLLM_MAIN_CUDA_VERSION="13.0"
 ARG VLLM_PREBUILT=0
 ARG VLLM_USE_PRECOMPILED=1
 
@@ -100,7 +101,7 @@ ENV LANG="C.UTF-8" \
     UV_HTTP_TIMEOUT="500" \
     UV_INDEX_STRATEGY="unsafe-best-match" \
     UV_LINK_MODE="copy" \
-    TORCH_CUDA_ARCH_LIST="7.0;7.5;8.0;8.6;8.9;9.0;9.0a;10.0;12.0+PTX" \
+    TORCH_CUDA_ARCH_LIST="10.0" \
     PYTHON_VERSION="3.12" \
     UV_TORCH_BACKEND="${UV_TORCH_BACKEND:-cu${CUDA_MAJOR}${CUDA_MINOR}}" \
     UV_BUILD_CONSTRAINT="/tmp/build-constraints.txt" \
@@ -180,7 +181,7 @@ RUN --mount=type=cache,target=/var/cache/git \
 ARG NVSHMEM_USE_GIT
 ARG NVSHMEM_REPO
 ARG NVSHMEM_VERSION
-ENV NVSHMEM_CUDA_ARCHITECTURES="90a;100"
+ENV NVSHMEM_CUDA_ARCHITECTURES="100"
 COPY docker/scripts/cuda/builder/build-nvshmem.sh /tmp/build-nvshmem.sh
 RUN --mount=type=cache,target=/var/cache/git \
     --mount=type=secret,id=aws_access_key_id \
@@ -283,7 +284,9 @@ ENV LANG="C.UTF-8" \
     EFA_PREFIX="/opt/amazon/efa" \
     UCX_PREFIX="/opt/ucx" \
     CUDA_HOME="/usr/local/cuda" \
-    VLLM_PRECOMPILED_WHEEL_VARIANT="cu130"
+    VLLM_PRECOMPILED_WHEEL_VARIANT="cu130" \
+    VLLM_MAIN_CUDA_VERSION="13.0" \
+    VLLM_PRECOMPILED_WHEEL_COMMIT="18d4e481d0ce8336f4e64da70f7b6076ad804971"
 
 ENV LD_LIBRARY_PATH="${EFA_PREFIX}/lib:${EFA_PREFIX}/lib64:\
 ${UCX_PREFIX}/lib:${UCX_PREFIX}/lib64:\
@@ -295,7 +298,7 @@ ${NVSHMEM_DIR}/lib:${NVSHMEM_DIR}/lib64:\
 ${LD_LIBRARY_PATH}" \
     PATH="${NVSHMEM_DIR}/bin:${UCX_PREFIX}/bin:${PATH}" \
     CPATH="${NVSHMEM_DIR}/include:${CPATH}" \
-    TORCH_CUDA_ARCH_LIST="7.0;7.5;8.0;8.6;8.9;9.0;9.0a;10.0;12.0+PTX" \
+    TORCH_CUDA_ARCH_LIST="10.0" \
     FLASHINFER_VERSION=${FLASHINFER_VERSION} \
     CUDA_MAJOR=${CUDA_MAJOR} \
     CUDA_MINOR=${CUDA_MINOR}
@@ -456,7 +459,7 @@ ENV PATH="${VIRTUAL_ENV}/bin:/usr/local/nvidia/bin:${PATH}" \
     TRITON_CACHE_DIR=/tmp/triton \
     # TRITON_LIBCUDA_PATH: On RHEL use /usr/lib64, on Ubuntu ARM64 use /usr/lib/aarch64-linux-gnu, on Ubuntu AMD64 use /usr/lib/x86_64-linux-gnu
     # Can be overridden at runtime via deployment config
-    TRITON_LIBCUDA_PATH=/usr/lib64 \
+    TRITON_LIBCUDA_PATH=/usr/lib/aarch64-linux-gnu \
     TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC=15 \
     TORCH_NCCL_DUMP_ON_TIMEOUT=0 \
     VLLM_SKIP_P2P_CHECK=1 \
