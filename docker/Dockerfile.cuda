@@ -62,7 +62,7 @@ ARG VLLM_REPO="https://github.com/neuralmagic/vllm.git"
 ARG VLLM_COMMIT_SHA="nvl72"
 ARG VLLM_PRECOMPILED_WHEEL_COMMIT="18d4e481d0ce8336f4e64da70f7b6076ad804971"
 ARG VLLM_PREBUILT=0
-ARG VLLM_USE_PRECOMPILED=1
+ARG VLLM_USE_PRECOMPILED=0
 
 
 # ============================================================================
@@ -401,7 +401,7 @@ ARG VLLM_PRECOMPILED_WHEEL_COMMIT
 # Dictates if we should pull a production wheel for the vllm commit sha
 ARG VLLM_PREBUILT
 # Dictates if we should pull precompiled binaries when installing vllm editably. These commits must be on main in vLLM.
-ARG VLLM_USE_PRECOMPILED=1
+ARG VLLM_USE_PRECOMPILED=0
 
 # A script that starts if users exec into the image with bash. It warns that vLLM is built with precompiled by default,
 # and so if they change the vLLM version or use their fork, it may no longer work due to the precompiled shared libraries
