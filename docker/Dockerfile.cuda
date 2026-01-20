@@ -71,10 +71,10 @@ ARG VLLM_USE_PRECOMPILED=1
 # ============================================================================
 FROM nvcr.io/nvidia/cuda:${CUDA_MAJOR}.${CUDA_MINOR}.${CUDA_PATCH}-devel-ubuntu22.04 AS builder
 
-ARG CACHE_BUSTER
-RUN if [ -n "${CACHE_BUSTER}" ]; then \
-        echo "$CACHE_BUSTER" > /tmp/builder-buster; \
-    fi;
+# ARG CACHE_BUSTER
+# RUN if [ -n "${CACHE_BUSTER}" ]; then \
+#         echo "$CACHE_BUSTER" > /tmp/builder-buster; \
+#     fi;
 
 ARG TARGETPLATFORM
 ARG TARGETOS
