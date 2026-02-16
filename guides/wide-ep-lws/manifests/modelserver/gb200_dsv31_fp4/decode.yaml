@@ -1,0 +1,269 @@
+apiVersion: leaderworkerset.x-k8s.io/v1
+kind: LeaderWorkerSet
+metadata:
+  name: wide-ep-llm-d-decode
+  labels:
+    llm-d.ai/inferenceServing: "true"
+    llm-d.ai/model: DeepSeek-R1-0528-FP4-v2
+    llm-d.ai/role: decode
+spec:
+  replicas: 1
+  leaderWorkerTemplate:
+    size: 8
+    workerTemplate:
+      metadata:
+        labels:
+          llm-d.ai/inferenceServing: "true"
+          llm-d.ai/model: DeepSeek-R1-0528-FP4-v2
+          llm-d.ai/role: decode
+      spec:
+        serviceAccountName: deepseek-r1
+        imagePullSecrets:
+          - name: rh-ee-ecrncevi-ecrncevi-vllm-pull-pull-secret
+        initContainers:
+          - name: routing-proxy
+            args:
+              - --port=8000
+              - --vllm-port=8200
+              - --connector=nixlv2
+              - --zap-log-level=debug
+              - --secure-proxy=false
+            image: ghcr.io/llm-d/llm-d-routing-sidecar:latest@sha256:e408208da659a8d5b33be94eaaff437c0af8b0ea920a87e023901d66ae62a9bc
+            imagePullPolicy: Always
+            ports:
+              - containerPort: 8000
+            resources: {}
+            restartPolicy: Always
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+        volumes:
+          - name: dshm
+            emptyDir:
+              medium: Memory
+              sizeLimit: 2Gi # 2Gi for NCCL 2.27 to be safe
+          - name: lustre
+            persistentVolumeClaim:
+              claimName: lustre-pvc-vllm
+        resourceClaims:
+          - name: compute-domain-channel
+            resourceClaimTemplateName: llm-d-dev-claim
+        containers:
+          - name: vllm-worker
+            #            image: quay.io/rh-ee-ecrncevi/llm-dev-cuda13:v0.5.0-arm64-hotfix
+            #            image: quay.io/rh-ee-ecrncevi/llm-dev-cuda13:upstream-arm64
+            #            image: quay.io/rh-ee-ecrncevi/llm-dev-cuda13:v0.5.0-arm64
+            image: quay.io/rh-ee-ecrncevi/llm-dev-cuda13:v0.5.0-arm64-upstream-dea63512bb9bdf7521d591546c52138d9d79e8ce
+            securityContext:
+              capabilities:
+                add:
+                  - IPC_LOCK
+                  - SYS_RAWIO
+              runAsGroup: 0
+              runAsUser: 0
+            imagePullPolicy: Always
+            command:
+              - /bin/bash
+              - -c
+            args:
+              - |-
+                set -e  # Exit on any error
+                #################
+                # RUN vLLM decode worker
+                ###############
+                START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
+
+                # Forward logs to Lustre for crash debugging
+                LOG_DIR="/mnt/lustre/vllm-vlm-elvircrn/logs/decode"
+                mkdir -p $LOG_DIR
+                LOG_FILE="$LOG_DIR/${HOSTNAME}_$(date +%Y%m%d_%H%M%S).log"
+                exec > >(tee -a "$LOG_FILE") 2>&1
+                echo "=== Decode worker starting at $(date) ==="
+                source /opt/vllm/bin/activate
+                uv pip uninstall pplx-kernels
+
+                # Always uninstall image's built-in DeepEP and build fresh
+                uv pip uninstall deep_ep
+
+                cd / && rm -rf /DeepEP && git clone https://github.com/elvircrn/DeepEP && cd DeepEP && git checkout ${DEEPEP_BRANCH}
+                cd /DeepEP && TORCH_CUDA_ARCH_LIST="10.0" python setup.py build && python setup.py install
+
+                # Patch: Fix shared_input chunking in MoE runner (c9d40aea)
+
+                PROFILER_ARGS=""
+                NSYS_PREFIX=""
+                NVTX_TRACING_ARG=""
+                if [ "${ENABLE_PROFILING:-0}" = "1" ]; then
+                  echo "Profiling enabled, installing profiling tools..."
+                  uv pip install nvtx
+                  mkdir -p /trace
+                  apt-get update && apt-get install -y --no-install-recommends nsight-systems-cli 2>/dev/null || \
+                  uv pip install nvidia-nsight-systems 2>/dev/null || \
+                  (echo "ERROR: Could not install nsys. Add nsight-systems to your container image." && exit 1)
+
+                  if [ "${PROFILER_TYPE:-nsys}" = "nsys" ]; then
+                    NSYS_PREFIX="nsys profile --cuda-graph-trace=graph --trace=cuda,nvtx --delay=${PROFILER_DELAY_SECS:-120} --duration=${PROFILER_DURATION_SECS:-10} -o /trace/decode_rank_${START_RANK}"
+                    NVTX_TRACING_ARG="--enable-layerwise-nvtx-tracing"
+                  else
+                    PROFILER_ARGS="--profiler-config {\"profiler\":\"torch\",\"max_iterations\":${PROFILER_MAX_ITERS:-32},\"torch_profiler_dir\":\"/trace\"}"
+                  fi
+                fi
+
+                exec $NSYS_PREFIX vllm serve $PROFILER_ARGS \
+                  nvidia/DeepSeek-R1-0528-FP4-v2 \
+                  --port 8200 \
+                  --disable-uvicorn-access-log \
+                  --enable-expert-parallel \
+                  --tensor-parallel-size 1 \
+                  --data-parallel-hybrid-lb \
+                  --data-parallel-size $((LWS_GROUP_SIZE * DP_SIZE_LOCAL)) \
+                  --data-parallel-size-local $DP_SIZE_LOCAL \
+                  --data-parallel-address ${LWS_LEADER_ADDRESS} \
+                  --data-parallel-rpc-port 5555 \
+                  --data-parallel-start-rank $START_RANK \
+                  --all2all-backend deepep_low_latency \
+                  --trust-remote-code \
+                  --kv_transfer_config '{"kv_connector":"NixlConnector","kv_role":"kv_both"}'
+#                  --enable-layerwise-nvtx-tracing
+            env:
+              - name: HF_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: hf-token
+                    key: HF_TOKEN
+              - name: MAX_JOBS
+                value: "64"
+              - name: CMAKE_BUILD_PARALLEL_LEVEL
+                value: "64"
+              - name: MAKEFLAGS
+                value: "-j64"
+              - name: NVCC_THREADS
+                value: "64"
+              - name: CUDA_HOME
+                value: "/usr/local/cuda-13"
+              - name: HF_HOME
+                value: /mnt/lustre/vllm-vlm-elvircrn
+              - name: TRANSFORMERS_CACHE
+                value: /mnt/lustre/vllm-vlm-elvircrn
+              - name: HF_HUB_CACHE
+                value: /mnt/lustre/vllm-vlm-elvircrn
+
+              # Compile caches - persist across restarts for faster startup
+              - name: VLLM_CACHE_ROOT
+                value: /mnt/lustre/vllm-vlm-elvircrn/vllm_cache
+              - name: FLASHINFER_CACHE_DIR
+                value: /mnt/lustre/vllm-vlm-elvircrn/flashinfer_cache
+
+              # Data parallelism - GPUs per pod
+              - name: DP_SIZE_LOCAL
+                value: "4"
+
+              # DeepEP configuration
+              - name: DEEPEP_BRANCH
+                value: "gb200_blog"
+
+              - name: VLLM_DEEPEP_LOW_LATENCY_ALLOW_NVLINK
+                value: "1"
+              - name: VLLM_DEEPEP_LOW_LATENCY_USE_MNNVL
+                value: "1"
+
+              # FlashInfer MoE backend for NVFP4
+              # Required for NVFP4 quantized experts with DeepEP low-latency backend
+              - name: VLLM_FLASHINFER_MOE_BACKEND
+                value: "masked_gemm"
+
+              # Common vLLM settings
+              - name: TRITON_LIBCUDA_PATH
+                value: /usr/lib64
+              - name: VLLM_RANDOMIZE_DP_DUMMY_INPUTS
+                value: "1"
+              - name: VLLM_USE_DEEP_GEMM
+                value: "1"
+              - name: NVIDIA_GDRCOPY
+                value: enabled
+
+              # Override container default that disables VMM
+              # VMM is required for fabric memory / MNNVL cross-pod communication
+              - name: NVSHMEM_DISABLE_CUDA_VMM
+                value: "0"
+
+              # NIXL side channel for KV cache coordination
+              - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+                valueFrom:
+                  fieldRef:
+                    fieldPath: status.podIP
+
+              # UCX configuration for NIXL - use only working InfiniBand devices
+              # Excluded: mlx5_2/5 are Ethernet/RoCE with no GID configured, mlx5_6 is DOWN
+              - name: UCX_NET_DEVICES
+                value: "mlx5_0:1,mlx5_1:1,mlx5_3:1,mlx5_4:1"
+
+              # Engine startup timeout (default 600s, increase for large models over network storage)
+              - name: VLLM_ENGINE_READY_TIMEOUT_S
+                value: "1800"
+
+              # Debug logging
+              - name: VLLM_LOGGING_LEVEL
+                value: INFO
+              - name: NCCL_DEBUG
+                value: INFO
+              - name: NVSHMEM_DEBUG
+                value: INFO
+
+#              - name: UCX_CUDA_IPC_ENABLE_MNNVL
+#                value: "y"
+
+#              - name: NCCL_MNNVL_ENABLE
+#                value: "0"
+
+              # Avoid HF API requests (makes sense only if requested model is cached)
+#              - name: HF_HUB_OFFLINE
+#                value: "1"
+#              - name: TRANSFORMERS_OFFLINE
+#                value: "1"
+
+              - name: VLLM_DEEPEPLL_NVFP4_DISPATCH
+                value: "1"
+
+              # Profiling (set ENABLE_PROFILING=1 to enable)
+              - name: ENABLE_PROFILING
+                value: "1"
+              - name: PROFILER_TYPE
+                value: "cuda"  # "nsys" or "cuda"
+              # nsys profiling options
+              - name: PROFILER_DELAY_SECS
+                value: "540"  # Wait 9 min after vllm starts
+              - name: PROFILER_DURATION_SECS
+                value: "10"   # Profile for 10 seconds
+              # cuda profiling options
+              - name: PROFILER_MAX_ITERS
+                value: "32"   # Profile N iterations
+              - name: VLLM_NVTX_SCOPES_FOR_PROFILING
+                value: "0"    # Disabled - requires nvtx module
+
+            ports:
+              - containerPort: 8200
+                name: metrics
+                protocol: TCP
+            readinessProbe:
+              httpGet:
+                path: /health
+                port: 8200
+            resources:
+              limits:
+                ephemeral-storage: 75Gi
+                memory: 512Gi
+                nvidia.com/gpu: "4"
+              requests:
+                cpu: 64
+                ephemeral-storage: 75Gi
+                memory: 512Gi
+                nvidia.com/gpu: "4"
+              claims:
+                - name: compute-domain-channel
+            volumeMounts:
+              - mountPath: /dev/shm
+                name: dshm
+              - name: lustre
+                mountPath: /mnt/lustre/vllm-vlm-elvircrn
+            workingDir: /code
