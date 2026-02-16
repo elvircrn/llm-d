@@ -90,7 +90,7 @@ spec:
 
                 # Cherry-pick EPLB batch communication (squashed commit from eplb-squashed branch)
                 cd /opt/vllm-source && git remote add neuralmagic https://github.com/neuralmagic/vllm.git 2>/dev/null || true
-                cd /opt/vllm-source && git fetch neuralmagic eplb-squashed && git cherry-pick --no-commit neuralmagic/eplb-squashed
+                cd /opt/vllm-source && git fetch neuralmagic eplb-squashed && git cherry-pick --no-commit -m 1 neuralmagic/eplb-squashed
 
                 PROFILER_ARGS=""
                 NSYS_PREFIX=""
