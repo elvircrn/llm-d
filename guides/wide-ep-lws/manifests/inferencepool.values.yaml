@@ -53,7 +53,7 @@ inferencePool:
   modelServers:
     matchLabels:
       llm-d.ai/inferenceServing: "true"
-      llm-d.ai/model: DeepSeek-R1-0528
+      llm-d.ai/model: DeepSeek-V3.1
 
 provider:
   name: istio
