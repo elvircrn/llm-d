@@ -88,9 +88,9 @@ spec:
                 cd / && rm -rf /DeepEP && git clone https://github.com/elvircrn/DeepEP && cd DeepEP && git checkout ${DEEPEP_BRANCH}
                 cd /DeepEP && TORCH_CUDA_ARCH_LIST="10.0" python setup.py build && python setup.py install
 
-                # Merge EPLB batch communication branch
+                # Cherry-pick EPLB batch communication (squashed commit from eplb-squashed branch)
                 cd /opt/vllm-source && git remote add neuralmagic https://github.com/neuralmagic/vllm.git 2>/dev/null || true
-                cd /opt/vllm-source && git fetch neuralmagic imarkov/eplb_batch_communication && git merge --no-commit neuralmagic/imarkov/eplb_batch_communication
+                cd /opt/vllm-source && git fetch neuralmagic eplb-squashed && git cherry-pick --no-commit neuralmagic/eplb-squashed
 
                 PROFILER_ARGS=""
                 NSYS_PREFIX=""
