@@ -4,7 +4,7 @@ metadata:
   name: wide-ep-llm-d-prefill
   labels:
     llm-d.ai/inferenceServing: "true"
-    llm-d.ai/model: DeepSeek-R1-0528-FP4-v2
+    llm-d.ai/model: Qwen3-32B-NVFP4
     llm-d.ai/role: prefill
 spec:
   replicas: 1
@@ -14,10 +14,10 @@ spec:
       metadata:
         labels:
           llm-d.ai/inferenceServing: "true"
-          llm-d.ai/model: DeepSeek-R1-0528-FP4-v2
+          llm-d.ai/model: Qwen3-32B-NVFP4
           llm-d.ai/role: prefill
       spec:
-        serviceAccountName: deepseek-r1
+        serviceAccountName: qwen3-32b
         imagePullSecrets:
           - name: rh-ee-ecrncevi-ecrncevi-vllm-pull-pull-secret
         volumes:
@@ -74,7 +74,7 @@ spec:
                 cd /opt/vllm-source
                 git remote add elvircrn https://github.com/elvircrn/vllm.git 2>/dev/null || true
                 git fetch elvircrn fix-eplb-nvfp4-contiguous
-                git cherry-pick --no-commit 00a944ef8e
+                git cherry-pick --no-commit bc814efacd
 
                 PROFILER_ARGS=""
                 NSYS_PREFIX=""
@@ -96,7 +96,7 @@ spec:
                 fi
 
                 exec $NSYS_PREFIX vllm serve $PROFILER_ARGS \
-                  nvidia/DeepSeek-R1-0528-FP4-v2 \
+                  nvidia/Qwen3-32B-NVFP4 \
                   --port 8000 \
                   --disable-uvicorn-access-log \
                   --enable-expert-parallel \

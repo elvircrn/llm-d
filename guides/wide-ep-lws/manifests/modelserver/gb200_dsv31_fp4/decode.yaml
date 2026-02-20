@@ -53,7 +53,7 @@ spec:
             #            image: quay.io/rh-ee-ecrncevi/llm-dev-cuda13:v0.5.0-arm64-hotfix
             #            image: quay.io/rh-ee-ecrncevi/llm-dev-cuda13:upstream-arm64
             #            image: quay.io/rh-ee-ecrncevi/llm-dev-cuda13:v0.5.0-arm64
-            image: quay.io/rh-ee-ecrncevi/llm-dev-cuda13:v0.5.0-arm64-upstream-dea63512bb9bdf7521d591546c52138d9d79e8ce
+            image: quay.io/rh-ee-ecrncevi/llm-dev-cuda13:v0.5.0-arm64-upstream-824f9e8f3c7f0a688b6093d0c85ed6b39ba314e1
             securityContext:
               capabilities:
                 add:
@@ -83,14 +83,21 @@ spec:
                 uv pip uninstall pplx-kernels
 
                 # Always uninstall image's built-in DeepEP and build fresh
-                uv pip uninstall deep_ep
+                # uv pip uninstall deep_ep
+                # cd / && rm -rf /DeepEP && git clone https://github.com/elvircrn/DeepEP && cd DeepEP && git checkout ${DEEPEP_BRANCH}
+                # cd /DeepEP && TORCH_CUDA_ARCH_LIST="10.0" python setup.py build && python setup.py install
 
-                cd / && rm -rf /DeepEP && git clone https://github.com/elvircrn/DeepEP && cd DeepEP && git checkout ${DEEPEP_BRANCH}
-                cd /DeepEP && TORCH_CUDA_ARCH_LIST="10.0" python setup.py build && python setup.py install
+                # Cherry-pick Ilia's EPLB batch communication merge (disabled - causes accuracy regression)
+                # cd /opt/vllm-source
+                # git remote add neuralmagic https://github.com/neuralmagic/vllm.git 2>/dev/null || true
+                # git fetch neuralmagic eplb-squashed
+                # git cherry-pick --no-commit -m 1 2a25b6b903
 
-                # Cherry-pick EPLB batch communication (squashed commit from eplb-squashed branch)
-                cd /opt/vllm-source && git remote add neuralmagic https://github.com/neuralmagic/vllm.git 2>/dev/null || true
-                cd /opt/vllm-source && git fetch neuralmagic eplb-squashed && git cherry-pick --no-commit -m 1 neuralmagic/eplb-squashed~1 && git cherry-pick --no-commit neuralmagic/eplb-squashed
+                # Cherry-pick NVFP4 EPLB contiguity fix (https://github.com/vllm-project/vllm/pull/34646)
+                cd /opt/vllm-source
+                git remote add elvircrn https://github.com/elvircrn/vllm.git 2>/dev/null || true
+                git fetch elvircrn fix-eplb-nvfp4-contiguous
+                git cherry-pick --no-commit 00a944ef8e
 
                 PROFILER_ARGS=""
                 NSYS_PREFIX=""
@@ -159,6 +166,12 @@ spec:
               # Data parallelism - GPUs per pod
               - name: DP_SIZE_LOCAL
                 value: "4"
+
+              # VLLM_MOE_DP_CHUNK_SIZE=N where N > concurrency per GPU
+              # vLLM default is 256, which may or may not be be too low
+#              - name: VLLM_MOE_DP_CHUNK_SIZE
+#                value: "512"
+
 
               # DeepEP configuration
               - name: DEEPEP_BRANCH
@@ -229,7 +242,7 @@ spec:
 
               # Profiling (set ENABLE_PROFILING=1 to enable)
               - name: ENABLE_PROFILING
-                value: "0"
+                value: "1"
               - name: PROFILER_TYPE
                 value: "cuda"  # "nsys" or "cuda"
               # nsys profiling options

@@ -1,25 +1,42 @@
 apiVersion: leaderworkerset.x-k8s.io/v1
 kind: LeaderWorkerSet
 metadata:
-  name: wide-ep-llm-d-prefill
+  name: wide-ep-llm-d-decode
   labels:
     llm-d.ai/inferenceServing: "true"
-    llm-d.ai/model: DeepSeek-R1-0528-FP4-v2
-    llm-d.ai/role: prefill
+    llm-d.ai/model: Qwen3-32B-NVFP4
+    llm-d.ai/role: decode
 spec:
   replicas: 1
   leaderWorkerTemplate:
-    size: 2
+    size: 8
     workerTemplate:
       metadata:
         labels:
           llm-d.ai/inferenceServing: "true"
-          llm-d.ai/model: DeepSeek-R1-0528-FP4-v2
-          llm-d.ai/role: prefill
+          llm-d.ai/model: Qwen3-32B-NVFP4
+          llm-d.ai/role: decode
       spec:
-        serviceAccountName: deepseek-r1
+        serviceAccountName: qwen3-32b
         imagePullSecrets:
           - name: rh-ee-ecrncevi-ecrncevi-vllm-pull-pull-secret
+        initContainers:
+          - name: routing-proxy
+            args:
+              - --port=8000
+              - --vllm-port=8200
+              - --connector=nixlv2
+              - --zap-log-level=debug
+              - --secure-proxy=false
+            image: ghcr.io/llm-d/llm-d-routing-sidecar:latest@sha256:e408208da659a8d5b33be94eaaff437c0af8b0ea920a87e023901d66ae62a9bc
+            imagePullPolicy: Always
+            ports:
+              - containerPort: 8000
+            resources: {}
+            restartPolicy: Always
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
         volumes:
           - name: dshm
             emptyDir:
@@ -52,16 +69,16 @@ spec:
               - |-
                 set -e  # Exit on any error
                 #################
-                # RUN vLLM prefill worker
-                #################
+                # RUN vLLM decode worker
+                ###############
                 START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
 
                 # Forward logs to Lustre for crash debugging
-                LOG_DIR="/mnt/lustre/vllm-vlm-elvircrn/logs/prefill"
+                LOG_DIR="/mnt/lustre/vllm-vlm-elvircrn/logs/decode"
                 mkdir -p $LOG_DIR
                 LOG_FILE="$LOG_DIR/${HOSTNAME}_$(date +%Y%m%d_%H%M%S).log"
                 exec > >(tee -a "$LOG_FILE") 2>&1
-                echo "=== Prefill worker starting at $(date) ==="
+                echo "=== Decode worker starting at $(date) ==="
                 source /opt/vllm/bin/activate
                 uv pip uninstall pplx-kernels
 
@@ -70,11 +87,17 @@ spec:
                 # cd / && rm -rf /DeepEP && git clone https://github.com/elvircrn/DeepEP && cd DeepEP && git checkout ${DEEPEP_BRANCH}
                 # cd /DeepEP && TORCH_CUDA_ARCH_LIST="10.0" python setup.py build && python setup.py install
 
+                # Cherry-pick Ilia's EPLB batch communication merge (disabled - causes accuracy regression)
+                # cd /opt/vllm-source
+                # git remote add neuralmagic https://github.com/neuralmagic/vllm.git 2>/dev/null || true
+                # git fetch neuralmagic eplb-squashed
+                # git cherry-pick --no-commit -m 1 2a25b6b903
+
                 # Cherry-pick NVFP4 EPLB contiguity fix (https://github.com/vllm-project/vllm/pull/34646)
                 cd /opt/vllm-source
                 git remote add elvircrn https://github.com/elvircrn/vllm.git 2>/dev/null || true
                 git fetch elvircrn fix-eplb-nvfp4-contiguous
-                git cherry-pick --no-commit 00a944ef8e
+                git cherry-pick --no-commit bc814efacd
 
                 PROFILER_ARGS=""
                 NSYS_PREFIX=""
@@ -88,7 +111,7 @@ spec:
                   (echo "ERROR: Could not install nsys. Add nsight-systems to your container image." && exit 1)
 
                   if [ "${PROFILER_TYPE:-nsys}" = "nsys" ]; then
-                    NSYS_PREFIX="nsys profile --cuda-graph-trace=graph --trace=cuda,nvtx --delay=${PROFILER_DELAY_SECS:-120} --duration=${PROFILER_DURATION_SECS:-10} -o /trace/prefill_rank_${START_RANK}"
+                    NSYS_PREFIX="nsys profile --cuda-graph-trace=graph --trace=cuda,nvtx --delay=${PROFILER_DELAY_SECS:-120} --duration=${PROFILER_DURATION_SECS:-10} -o /trace/decode_rank_${START_RANK}"
                     NVTX_TRACING_ARG="--enable-layerwise-nvtx-tracing"
                   else
                     PROFILER_ARGS="--profiler-config {\"profiler\":\"torch\",\"max_iterations\":${PROFILER_MAX_ITERS:-32},\"torch_profiler_dir\":\"/trace\"}"
@@ -96,8 +119,8 @@ spec:
                 fi
 
                 exec $NSYS_PREFIX vllm serve $PROFILER_ARGS \
-                  nvidia/DeepSeek-R1-0528-FP4-v2 \
-                  --port 8000 \
+                  nvidia/Qwen3-32B-NVFP4 \
+                  --port 8200 \
                   --disable-uvicorn-access-log \
                   --enable-expert-parallel \
                   --tensor-parallel-size 1 \
@@ -107,17 +130,18 @@ spec:
                   --data-parallel-address ${LWS_LEADER_ADDRESS} \
                   --data-parallel-rpc-port 5555 \
                   --data-parallel-start-rank $START_RANK \
-                  --all2all-backend allgather_reducescatter \
+                  --all2all-backend deepep_low_latency \
                   --trust-remote-code \
-                  --kv_transfer_config '{"kv_connector":"NixlConnector","kv_role":"kv_both"}' \
-                  $NVTX_TRACING_ARG
+                  --enable-eplb \
+                  --eplb-config '{"window_size":"10","step_interval":"4","num_redundant_experts":"32","log_balancedness":"False"}' \
+                  --kv_transfer_config '{"kv_connector":"NixlConnector","kv_role":"kv_both"}'
+#                  --enable-layerwise-nvtx-tracing
             env:
               - name: HF_TOKEN
                 valueFrom:
                   secretKeyRef:
                     name: hf-token
                     key: HF_TOKEN
-
               - name: MAX_JOBS
                 value: "64"
               - name: CMAKE_BUILD_PARALLEL_LEVEL
@@ -135,7 +159,6 @@ spec:
               - name: HF_HUB_CACHE
                 value: /mnt/lustre/vllm-vlm-elvircrn
 
-
               # Compile caches - persist across restarts for faster startup
               - name: VLLM_CACHE_ROOT
                 value: /mnt/lustre/vllm-vlm-elvircrn/vllm_cache
@@ -150,10 +173,22 @@ spec:
               - name: DEEPEP_BRANCH
                 value: "gb200_blog"
 
+              - name: VLLM_DEEPEP_LOW_LATENCY_ALLOW_NVLINK
+                value: "1"
+              - name: VLLM_DEEPEP_LOW_LATENCY_USE_MNNVL
+                value: "1"
+
+              # FlashInfer MoE backend for NVFP4
+              # Required for NVFP4 quantized experts with DeepEP low-latency backend
+              - name: VLLM_FLASHINFER_MOE_BACKEND
+                value: "masked_gemm"
+
               # Common vLLM settings
               - name: TRITON_LIBCUDA_PATH
                 value: /usr/lib64
               - name: VLLM_RANDOMIZE_DP_DUMMY_INPUTS
+                value: "1"
+              - name: VLLM_USE_DEEP_GEMM
                 value: "1"
               - name: NVIDIA_GDRCOPY
                 value: enabled
@@ -186,16 +221,20 @@ spec:
               - name: NVSHMEM_DEBUG
                 value: INFO
 
+#              - name: UCX_CUDA_IPC_ENABLE_MNNVL
+#                value: "y"
 
 #              - name: NCCL_MNNVL_ENABLE
 #                value: "0"
-
 
               # Avoid HF API requests (makes sense only if requested model is cached)
 #              - name: HF_HUB_OFFLINE
 #                value: "1"
 #              - name: TRANSFORMERS_OFFLINE
 #                value: "1"
+
+              - name: VLLM_DEEPEPLL_NVFP4_DISPATCH
+                value: "1"
 
               # Profiling (set ENABLE_PROFILING=1 to enable)
               - name: ENABLE_PROFILING
@@ -211,19 +250,16 @@ spec:
               - name: PROFILER_MAX_ITERS
                 value: "32"   # Profile N iterations
               - name: VLLM_NVTX_SCOPES_FOR_PROFILING
-                value: "0"    # Enable NVTX markers
-
-#              - name: UCX_CUDA_IPC_ENABLE_MNNVL
-#                value: "y"
+                value: "0"    # Disabled - requires nvtx module
 
             ports:
-              - containerPort: 8000
+              - containerPort: 8200
                 name: metrics
                 protocol: TCP
             readinessProbe:
               httpGet:
                 path: /health
-                port: 8000
+                port: 8200
             resources:
               limits:
                 ephemeral-storage: 75Gi
