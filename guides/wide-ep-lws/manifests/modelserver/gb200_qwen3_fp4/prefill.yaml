@@ -32,7 +32,7 @@ spec:
           - name: compute-domain-channel
             resourceClaimTemplateName: llm-d-dev-claim
         containers:
-          - name: vllm-worker
+          - name: vllm
             #            image: quay.io/rh-ee-ecrncevi/llm-dev-cuda13:v0.5.0-arm64-hotfix
             #            image: quay.io/rh-ee-ecrncevi/llm-dev-cuda13:upstream-arm64
             #            image: quay.io/rh-ee-ecrncevi/llm-dev-cuda13:v0.5.0-arm64

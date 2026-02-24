@@ -32,7 +32,7 @@ spec:
           - name: compute-domain-channel
             resourceClaimTemplateName: llm-d-dev-claim
         containers:
-          - name: vllm-worker
+          - name: vllm
             #            image: quay.io/rh-ee-ecrncevi/llm-dev-cuda13:v0.5.0-arm64-hotfix
             #            image: quay.io/rh-ee-ecrncevi/llm-dev-cuda13:upstream-arm64
             #            image: quay.io/rh-ee-ecrncevi/llm-dev-cuda13:v0.5.0-arm64
@@ -74,7 +74,11 @@ spec:
                 cd /opt/vllm-source
                 git remote add elvircrn https://github.com/elvircrn/vllm.git 2>/dev/null || true
                 git fetch elvircrn fix-eplb-nvfp4-contiguous
+                git fetch elvircrn mla-fused-concat-quant
                 git cherry-pick --no-commit 00a944ef8e
+                
+                # MLA torch.concat optimization
+                git cherry-pick --no-commit e93799b752 
 
                 PROFILER_ARGS=""
                 NSYS_PREFIX=""
@@ -192,10 +196,13 @@ spec:
 
 
               # Avoid HF API requests (makes sense only if requested model is cached)
-#              - name: HF_HUB_OFFLINE
-#                value: "1"
-#              - name: TRANSFORMERS_OFFLINE
-#                value: "1"
+              - name: HF_HUB_OFFLINE
+                value: "1"
+              - name: TRANSFORMERS_OFFLINE
+                value: "1"
+
+              - name: VLLM_MLA_FUSED_CONCAT_QUANT
+                value: "1"
 
               # Profiling (set ENABLE_PROFILING=1 to enable)
               - name: ENABLE_PROFILING
