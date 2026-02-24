@@ -102,8 +102,9 @@ echo "DEBUG: Installing packages: ${INSTALL_PACKAGES[*]}"
 # install all packages in one command with verbose output to prevent GHA timeouts
 # use flashinfer wheel index for jit-cache pre-built binaries
 CUDA_SHORT_VERSION="cu${CUDA_MAJOR}${CUDA_MINOR}"
+export UV_CACHE_DIR=/tmp/uv-cache
 uv pip install -v "${INSTALL_PACKAGES[@]}" \
-  --extra-index-url "https://flashinfer.ai/whl/${CUDA_SHORT_VERSION}"
+  --extra-index-url "https://flashinfer.ai/whl/${CUDA_SHORT_VERSION}" 
 
 # uninstall the NVSHMEM dependency brought in by vllm if using a compiled NVSHMEM
 if [[ "${NVSHMEM_DIR-}" != "" ]]; then

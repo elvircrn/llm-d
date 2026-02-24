@@ -35,14 +35,14 @@ fi
 
 # Prior to NVSHMEM_VERSION 3.4.5 we have to carry a set of patches for device renaming.
 # For more info, see: https://github.com/NVIDIA/nvshmem/releases/tag/v3.4.5-0, specifically regarding NVSHMEM_HCA_PREFIX
-for i in /tmp/patches/cks_nvshmem"${NVSHMEM_VERSION}".patch /tmp/patches/nvshmem_zero_ibv_ah_attr_"${NVSHMEM_VERSION}".patch; do
-    if [[ -f $i ]]; then
-        echo "Applying patch: $i"
-        git apply $i
-    else
-        echo "Unable to find patch matching nvshmem version ${NVSHMEM_VERSION}: $i"
-    fi
-done
+# for i in /tmp/patches/cks_nvshmem"${NVSHMEM_VERSION}".patch /tmp/patches/nvshmem_zero_ibv_ah_attr_"${NVSHMEM_VERSION}".patch; do
+    # if [[ -f $i ]]; then
+        # echo "Applying patch: $i"
+        # git apply $i
+    # else
+        # echo "Unable to find patch matching nvshmem version ${NVSHMEM_VERSION}: $i"
+    # fi
+# done
 
 mkdir -p build && cd build
 
