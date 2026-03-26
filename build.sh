@@ -40,10 +40,14 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# Update repo in Dockerfile if specified
+# Determine repo: --repo flag > --latest defaults to upstream > Dockerfile value
 if [ -n "$VLLM_REPO" ]; then
   sed -i "s|VLLM_REPO=\".*\"|VLLM_REPO=\"${VLLM_REPO}\"|" docker/Dockerfile.cuda
   echo "Using repo: ${VLLM_REPO}"
+elif [ "$COMMIT_MODE" = "latest" ]; then
+  VLLM_REPO="$DEFAULT_REPO"
+  sed -i "s|VLLM_REPO=\".*\"|VLLM_REPO=\"${VLLM_REPO}\"|" docker/Dockerfile.cuda
+  echo "Using upstream repo for --latest: ${VLLM_REPO}"
 else
   VLLM_REPO=$(grep '^ARG VLLM_REPO=' docker/Dockerfile.cuda | cut -d'"' -f2)
 fi
