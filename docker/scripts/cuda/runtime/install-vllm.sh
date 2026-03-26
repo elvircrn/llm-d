@@ -13,6 +13,23 @@ set -Eeu
 # - BUILD_NIXL_FROM_SOURCE: if nixl should be installed by vLLM or has been built from source in the builder stages
 
 . /opt/vllm/bin/activate
+# Enable sccache for cached builds - fail if not available
+if [ ! -x /usr/local/bin/setup-sccache ]; then
+    echo "ERROR: setup-sccache not found or not executable"
+    exit 1
+fi
+USE_SCCACHE=${USE_SCCACHE:-true} . /usr/local/bin/setup-sccache
+    export SCCACHE_BASEDIR=/tmp
+if ! which sccache >/dev/null 2>&1; then
+    echo "ERROR: sccache binary not found after setup"
+    exit 1
+fi
+if ! sccache --show-stats >/dev/null 2>&1; then
+    echo "ERROR: sccache server not running"
+    exit 1
+fi
+echo "sccache is active:"
+sccache --show-stats 2>&1
 
 # default VLLM_PRECOMPILED_WHEEL_COMMIT to VLLM_COMMIT_SHA if not set
 VLLM_PRECOMPILED_WHEEL_COMMIT="${VLLM_PRECOMPILED_WHEEL_COMMIT:-${VLLM_COMMIT_SHA}}"
@@ -36,6 +53,8 @@ git clone "${VLLM_REPO}" /opt/vllm-source
 git -C /opt/vllm-source config --system --add safe.directory /opt/vllm-source
 git -C /opt/vllm-source fetch --depth=1 origin "${VLLM_COMMIT_SHA}" || true
 git -C /opt/vllm-source checkout -q "${VLLM_COMMIT_SHA}"
+# Patch flashinfer-python version to match installed flashinfer
+sed -i "s/flashinfer-python==.*/flashinfer-python==0.6.6/" /opt/vllm-source/requirements/cuda.txt
 
 # detect if prebuilt wheel exists (using VLLM_PRECOMPILED_WHEEL_COMMIT for lookup)
 # note: vllm wheel index structure isn't pip-compatible, so we scrape the HTML directly
@@ -105,6 +124,10 @@ CUDA_SHORT_VERSION="cu${CUDA_MAJOR}${CUDA_MINOR}"
 export UV_CACHE_DIR=/tmp/uv-cache
 uv pip install -v "${INSTALL_PACKAGES[@]}" \
   --extra-index-url "https://flashinfer.ai/whl/${CUDA_SHORT_VERSION}" 
+
+# sccache stats after vllm build
+echo "=== vllm build complete - sccache stats ==="
+sccache --show-stats 2>&1 || echo "DEBUG sccache: not available for stats"
 
 # uninstall the NVSHMEM dependency brought in by vllm if using a compiled NVSHMEM
 if [[ "${NVSHMEM_DIR-}" != "" ]]; then

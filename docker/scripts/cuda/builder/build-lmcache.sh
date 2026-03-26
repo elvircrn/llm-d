@@ -16,15 +16,17 @@ set -Eeu
 
 cd /tmp
 
-. /usr/local/bin/setup-sccache
+# Disable sccache entirely for LMCache - torch cpp_extension is incompatible with sccache+nvcc
+if [ -x /usr/local/bin/sccache ]; then
+    sccache --stop-server 2>/dev/null || true
+    mv /usr/local/bin/sccache /usr/local/bin/sccache.bak
+fi
 . "${VIRTUAL_ENV}/bin/activate"
 
 # PyTorch cpp_extension doesn't recognize "10.0f" syntax, normalize to standard format
 export TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST//10.0f/10.0}"
 
-if [ "${USE_SCCACHE}" = "true" ]; then
-    export CC="sccache gcc" CXX="sccache g++" NVCC="sccache nvcc"
-fi
+
 
 git clone "${INFINISTORE_REPO}" infinistore && cd infinistore
 git checkout -q "${INFINISTORE_VERSION}"
@@ -38,7 +40,7 @@ uv build --wheel --no-build-isolation --out-dir /wheels  && \
 cd ..
 rm -rf lmcache
 
-if [ "${USE_SCCACHE}" = "true" ]; then
-    echo "=== LMCache and Infinistore build complete - sccache stats ==="
-    sccache --show-stats
+# Restore sccache for subsequent build steps
+if [ -f /usr/local/bin/sccache.bak ]; then
+    mv /usr/local/bin/sccache.bak /usr/local/bin/sccache
 fi
