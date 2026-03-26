@@ -11,6 +11,7 @@ usage() {
   echo "  --commit <sha>      Use a specific vllm commit"
   echo "  --repo <url>        Use a different vllm repo (default: upstream)"
   echo "  --precompiled       Use precompiled vllm binaries (faster build, no C++/CUDA editing)"
+  echo "  --registry <url>    Registry prefix (default: quay.io/rh-ee-ecrncevi)"
   echo "  --no-cache          Force rebuild all layers"
   echo ""
   echo "Examples:"
@@ -27,12 +28,14 @@ NO_CACHE=""
 COMMIT_MODE="dockerfile"
 SPECIFIC_COMMIT=""
 VLLM_REPO=""
+REGISTRY="quay.io/rh-ee-ecrncevi"
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --latest) COMMIT_MODE="latest"; shift ;;
     --commit) COMMIT_MODE="specific"; SPECIFIC_COMMIT="${2:?--commit requires a sha}"; shift 2 ;;
     --repo) VLLM_REPO="${2:?--repo requires a url}"; shift 2 ;;
+    --registry) REGISTRY="${2:?--registry requires a url}"; shift 2 ;;
     --precompiled) VLLM_USE_PRECOMPILED=1; shift ;;
     --no-cache) NO_CACHE="--no-cache"; shift ;;
     --help|-h) usage ;;
@@ -72,7 +75,7 @@ if [ -z "$VLLM_COMMIT_SHA" ]; then
   exit 1
 fi
 
-IMAGE_TAG="quay.io/rh-ee-ecrncevi/llm-dev-cuda13:v0.5.0-arm64-upstream-${VLLM_COMMIT_SHA}"
+IMAGE_TAG="${REGISTRY}/llm-dev-cuda13:v0.5.0-arm64-upstream-${VLLM_COMMIT_SHA}"
 
 echo "Building with VLLM_COMMIT_SHA=${VLLM_COMMIT_SHA}"
 echo "VLLM_USE_PRECOMPILED=${VLLM_USE_PRECOMPILED}"
