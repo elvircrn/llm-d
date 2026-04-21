@@ -31,6 +31,9 @@ fi
 git clone "${NIXL_REPO}" nixl && cd nixl
 git checkout -q "${NIXL_VERSION}"
 
+# Patch package name to match CUDA version (upstream hardcodes nixl-cu12)
+sed -i "s/name = \"nixl-cu12\"/name = \"nixl-cu${CUDA_MAJOR}\"/" pyproject.toml
+
 # Ubuntu image needs to be built against Ubuntu 20.04 and EFA only supports 22.04 and 24.04.
 EFA_FLAG=""
 if [ "$TARGETOS" = "rhel" ]; then

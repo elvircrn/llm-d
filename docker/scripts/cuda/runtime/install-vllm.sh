@@ -54,7 +54,7 @@ git -C /opt/vllm-source config --system --add safe.directory /opt/vllm-source
 git -C /opt/vllm-source fetch --depth=1 origin "${VLLM_COMMIT_SHA}" || true
 git -C /opt/vllm-source checkout -q "${VLLM_COMMIT_SHA}"
 # Patch flashinfer-python version to match installed flashinfer
-sed -i "s/flashinfer-python==.*/flashinfer-python==0.6.6/" /opt/vllm-source/requirements/cuda.txt
+sed -i "s/flashinfer-python==.*/flashinfer-python==0.6.7/" /opt/vllm-source/requirements/cuda.txt
 
 # detect if prebuilt wheel exists (using VLLM_PRECOMPILED_WHEEL_COMMIT for lookup)
 # note: vllm wheel index structure isn't pip-compatible, so we scrape the HTML directly

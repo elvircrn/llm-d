@@ -33,7 +33,7 @@ ARG GDRCOPY_REPO="https://github.com/NVIDIA/gdrcopy.git"
 ARG GDRCOPY_VERSION="v2.5.1"
 
 ARG UCX_REPO="https://github.com/openucx/ucx.git"
-ARG UCX_VERSION="v1.19.0"
+ARG UCX_VERSION="v1.20.0"
 
 ARG NVSHMEM_USE_GIT="false"
 ARG NVSHMEM_REPO="https://github.com/NVIDIA/nvshmem.git"
@@ -41,7 +41,7 @@ ARG NVSHMEM_VERSION="3.3.24"
 
 ARG BUILD_NIXL_FROM_SOURCE="true"
 ARG NIXL_REPO="https://github.com/ai-dynamo/nixl.git"
-ARG NIXL_VERSION="0.8.0"
+ARG NIXL_VERSION="v1.0.1"
 
 ARG INFINISTORE_REPO="https://github.com/bytedance/InfiniStore.git"
 ARG INFINISTORE_VERSION="0.2.33"
@@ -56,11 +56,11 @@ ARG DEEPGEMM_VERSION="v2.1.0"
 ARG PPLX_KERNELS_REPO="https://github.com/perplexityai/pplx-kernels"
 ARG PPLX_KERNELS_VERSION="2bd6e30fab358829bd01d1c0907be8088ff9e5e1"
 ARG FLASHINFER_REPO="https://github.com/flashinfer-ai/flashinfer.git"
-ARG FLASHINFER_VERSION="v0.6.6"
+ARG FLASHINFER_VERSION="v0.6.7"
 
 # vLLM build settings
-ARG VLLM_REPO="https://github.com/vllm-project/vllm"
-ARG VLLM_COMMIT_SHA="be1a85b7a2929f25c93d469fdd733a3576609e70"
+ARG VLLM_REPO="https://github.com/elvircrn/vllm"
+ARG VLLM_COMMIT_SHA="7b7596c2"
 ARG VLLM_PRECOMPILED_WHEEL_COMMIT=""
 ARG VLLM_PREBUILT=0
 ARG VLLM_USE_PRECOMPILED=0
