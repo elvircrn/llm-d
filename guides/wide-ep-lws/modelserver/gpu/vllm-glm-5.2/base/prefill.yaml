@@ -120,6 +120,20 @@ spec:
                   print('worker.py: no match for set_ pattern')
                 "
 
+                # Hotfix: expanded_block_table_buffer off-by-one (vllm#46074)
+                # Buffer is sized for cdiv(max_model_len, block_size) blocks but the
+                # block table can have +1 entries. Add 1 to the buffer column count.
+                python3 -c "
+                import re
+                p='/usr/local/lib/python3.12/dist-packages/vllm/v1/attention/backends/mla/indexer.py'
+                s=open(p).read()
+                pat=r'(max_num_blocks_per_req\s*=\s*cdiv\(\s*self\.vllm_config\.model_config\.max_model_len,\s*self\.kv_cache_spec\.block_size\s*\*\s*get_total_cp_world_size\(\),\s*\))'
+                if re.search(pat, s) and '+ 1  # vllm#46074' not in s:
+                  s=re.sub(pat, r'\1 + 1  # vllm#46074', s, count=1)
+                  open(p,'w').write(s); print('PATCHED indexer.py: +1 block for expanded_block_table_buffer')
+                else: print('indexer.py: already patched or pattern not found')
+                "
+
                 #################
                 # RUN vLLM GLM-5.2-FP8 prefill worker
                 #################
@@ -165,7 +179,7 @@ spec:
                   --port 8000 \
                   --trust-remote-code \
                   --gpu-memory-utilization $GPU_MEM_UTIL \
-                  --max-model-len 119999 \
+                  --max-model-len 120000 \
                   --disable-access-log-for-endpoints=/health,/metrics \
                   --data-parallel-multi-port-external-lb \
                   --data-parallel-supervisor-port=8208 \
