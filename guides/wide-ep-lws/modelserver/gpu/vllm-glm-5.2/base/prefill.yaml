@@ -155,14 +155,15 @@ spec:
                                         "kv_role":"kv_both",
                                         "kv_load_failure_policy":"fail",
                                         "kv_connector_extra_config":{
-                                          "connectors":[
+                                            "connectors":[
                                             {"kv_connector":"NixlConnector","kv_role":"kv_both"},
                                             {"kv_connector":"OffloadingConnector","kv_role":"kv_both",
                                              "kv_connector_extra_config":{
                                                "spec_name":"TieringOffloadingSpec",
                                                "cpu_bytes_to_use":'"${KV_OFFLOAD_CPU_BYTES:-107374182400}"',
                                                "eviction_policy":"lru"
-                                          }}]}}'
+                                          }}] 
+                                          }}'
                 fi
 
                 exec vllm serve $SPEC_ARGS $KV_CACHE_DTYPE_ARGS \
@@ -170,7 +171,7 @@ spec:
                   --port 8000 \
                   --trust-remote-code \
                   --gpu-memory-utilization $GPU_MEM_UTIL \
-                  --max-model-len 130000 \
+                  --max-model-len 570000 \
                   --disable-access-log-for-endpoints=/health,/metrics \
                   --data-parallel-multi-port-external-lb \
                   --data-parallel-supervisor-port=8208 \
