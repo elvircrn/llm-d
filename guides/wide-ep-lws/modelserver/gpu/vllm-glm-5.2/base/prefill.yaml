@@ -86,6 +86,19 @@ spec:
                 else: print('mla_attention.py already patched')
                 "
 
+                # Hotfix: DeepGemm warmup OOM — remove DP world_size multiplication
+                # deep_gemm_warmup multiplies max_tokens by DP world_size, making the
+                # warmup tensor too large. The warmup runs per-rank, so scaling by
+                # world_size is wrong — each rank only sees max_num_batched_tokens.
+                python3 -c "
+                p='/usr/local/lib/python3.12/dist-packages/vllm/model_executor/warmup/deep_gemm_warmup.py'
+                s=open(p).read()
+                old='max_tokens = get_dp_group().world_size * max_tokens'
+                if old in s:
+                  open(p,'w').write(s.replace(old,'# max_tokens = get_dp_group().world_size * max_tokens')); print('PATCHED deep_gemm_warmup.py')
+                else: print('deep_gemm_warmup.py already patched or pattern not found')
+                "
+
                 # Hotfix: MLA indexer off-by-one (vllm#43970)
                 # expanded_block_table_buffer must match MultiGroupBlockTable padding
                 python3 -c "
@@ -238,6 +251,8 @@ spec:
                 value: "1"
               - name: VLLM_USE_DEEP_GEMM
                 value: "1"
+              - name: VLLM_DEEP_GEMM_WARMUP
+                value: "skip"
               - name: NVIDIA_GDRCOPY
                 value: enabled
               - name: NVSHMEM_REMOTE_TRANSPORT
