@@ -123,6 +123,48 @@ spec:
                 else: print('mla_attention.py already patched')
                 "
 
+                # Hotfix: MLA indexer off-by-one (vllm#43970)
+                # expanded_block_table_buffer must match MultiGroupBlockTable padding
+                python3 -c "
+                p='/usr/local/lib/python3.12/dist-packages/vllm/v1/attention/backends/mla/indexer.py'
+                s=open(p).read()
+                old='max_num_blocks_per_req = cdiv(\n            self.vllm_config.model_config.max_model_len,\n            self.kv_cache_spec.block_size * get_total_cp_world_size(),\n        )'
+                new='''block_size = self.kv_cache_spec.block_size
+                max_num_blocks_per_req = cdiv(
+                    self.vllm_config.model_config.max_model_len,
+                    block_size * get_total_cp_world_size(),
+                )
+                if block_size <= 128:
+                    max_num_blocks_per_req = (
+                        cdiv(max_num_blocks_per_req, 128 // block_size)
+                        * (128 // block_size)
+                    )'''
+                if 'block_size <= 128' not in s:
+                  # normalize indentation for matching
+                  import textwrap
+                  s2=s.replace(textwrap.dedent(old), textwrap.dedent(new))
+                  if s2 != s:
+                    open(p,'w').write(s2); print('PATCHED indexer.py')
+                  else:
+                    # fallback: line-level patch
+                    lines=s.split('\n')
+                    for i,l in enumerate(lines):
+                      if 'max_num_blocks_per_req = cdiv(' in l and 'max_model_len' in lines[i+1]:
+                        indent=l[:len(l)-len(l.lstrip())]
+                        bs_line=indent+'block_size = self.kv_cache_spec.block_size'
+                        lines[i]=bs_line+'\n'+indent+'max_num_blocks_per_req = cdiv('
+                        lines[i+2]=lines[i+2].replace('self.kv_cache_spec.block_size','block_size')
+                        # find closing paren
+                        for j in range(i+1,len(lines)):
+                          if lines[j].strip()==')':
+                            pad_code=indent+'if block_size <= 128:\n'+indent+'    max_num_blocks_per_req = (\n'+indent+'        cdiv(max_num_blocks_per_req, 128 // block_size)\n'+indent+'        * (128 // block_size)\n'+indent+'    )'
+                            lines[j]=lines[j]+'\n'+pad_code
+                            break
+                        break
+                    open(p,'w').write('\n'.join(lines)); print('PATCHED indexer.py (fallback)')
+                else: print('indexer.py already patched')
+                "
+
                 # Hotfix: offloading set_ overflow for packed non-uniform KV caches
                 # The indexer group's offset+page_size exceeds block_stride in the packed
                 # layout. Replace set_() with as_strided() to avoid bounds check failure.
