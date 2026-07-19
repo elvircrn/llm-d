@@ -198,9 +198,9 @@ spec:
                   PROFILER_ARGS="--profiler-config {\"profiler\":\"torch\",\"torch_profiler_dir\":\"/var/cache/vllm/profile\",\"torch_profiler_record_shapes\":true,\"torch_profiler_with_memory\":true,\"max_iterations\":3}"
                 fi
 
-                exec vllm serve $PROFILER_ARGS --kv-cache-dtype fp8 \
+                exec vllm serve zai-org/GLM-5.2-FP8 \
+                  $PROFILER_ARGS --kv-cache-dtype fp8 \
                   --speculative-config '{"method":"mtp","num_speculative_tokens":3}' \
-                  zai-org/GLM-5.2-FP8 \
                   --served-model-name zai-org/GLM-5.2-FP8 \
                   --port 8200 \
                   --trust-remote-code \

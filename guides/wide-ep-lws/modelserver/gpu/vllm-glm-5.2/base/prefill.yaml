@@ -180,9 +180,9 @@ spec:
                                           }}'
                 fi
 
-                exec vllm serve --kv-cache-dtype fp8 \
+                exec vllm serve zai-org/GLM-5.2-FP8 \
+                  --kv-cache-dtype fp8 \
                   --speculative-config '{"method":"mtp","num_speculative_tokens":3}' \
-                  zai-org/GLM-5.2-FP8 \
                   --served-model-name zai-org/GLM-5.2-FP8 \
                   --port 8000 \
                   --trust-remote-code \
