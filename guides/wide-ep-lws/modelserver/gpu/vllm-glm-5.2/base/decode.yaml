@@ -189,7 +189,7 @@ spec:
                 export MAX_TOKENS=$(( ${MAX_TOKENS_PER_NODE:-128} * LWS_GROUP_SIZE ))
 
                 # Wide-EP (multi-node): reserve VRAM for NVSHMEM symmetric heap
-                GPU_MEM_UTIL=0.96
+                GPU_MEM_UTIL=0.95
 
                 # DSpark speculative decoding (multi-node only — single-node is memory-bandwidth bound)
                 SPEC_ARGS=""
