@@ -23,16 +23,31 @@ spec:
       spec:
         serviceAccountName: glm-5-2
         affinity:
-          podAffinity:
-            preferredDuringSchedulingIgnoredDuringExecution:
-              - weight: 100
-                podAffinityTerm:
-                  labelSelector:
-                    matchLabels:
-                      llm-d.ai/role: decode
-                      llm-d.ai/model: GLM-5.2-FP8
-                  topologyKey: backend.coreweave.cloud/leafgroup-name
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+              - matchExpressions:
+                - key: nvidia.com/gpu.product
+                  operator: In
+                  values:
+                  - NVIDIA-H100-80GB-HBM3
+        tolerations:
+          - effect: NoSchedule
+            key: nvidia.com/gpu
+            operator: Exists
+          - effect: NoSchedule
+            key: node.kubernetes.io/memory-pressure
+            operator: Exists
         initContainers:
+          - name: verify-model-mount
+            image: busybox:1.36
+            imagePullPolicy: IfNotPresent
+            command: ["sh", "-c"]
+            args:
+              - until [ -f /model-cache/models/zai-org/GLM-5.2-FP8/config.json ]; do echo 'config.json not visible; waiting 10s'; sleep 10; done
+            volumeMounts:
+              - name: hf-cache
+                mountPath: /model-cache
           - name: routing-proxy
             args:
               - --port=8000
@@ -92,10 +107,15 @@ spec:
             hostPath:
               path: /proc
               type: Directory
+          - name: dev-infiniband
+            hostPath:
+              path: /dev/infiniband
+              type: Directory
         containers:
           - name: vllm
             image: image-registry.openshift-image-registry.svc:5000/tms/tms-vllm-glm52-blog-deepep@sha256:b316246789cdf4bc68f94611598b0940f86f7a836103401b115b45b451fed167
             securityContext:
+              privileged: true
               capabilities:
                 add:
                   - IPC_LOCK
@@ -196,7 +216,7 @@ spec:
                   PROFILER_ARGS="--profiler-config {\"profiler\":\"torch\",\"torch_profiler_dir\":\"/var/cache/vllm/profile\",\"torch_profiler_record_shapes\":true,\"torch_profiler_with_memory\":true,\"max_iterations\":3}"
                 fi
 
-                exec vllm serve zai-org/GLM-5.2-FP8 \
+                exec vllm serve /model-cache/models/zai-org/GLM-5.2-FP8 \
                   $PROFILER_ARGS --kv-cache-dtype fp8 \
                   --speculative-config '{"method":"mtp","num_speculative_tokens":3}' \
                   --served-model-name zai-org/GLM-5.2-FP8 \
@@ -236,7 +256,9 @@ spec:
                     name: llm-d-hf-token
                     key: HF_TOKEN
               - name: HF_HOME
-                value: /mnt/hf-cache
+                value: /model-cache
+              - name: TRANSFORMERS_CACHE
+                value: /model-cache
               - name: ENABLE_PROFILING
                 value: "0"
               - name: VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS
@@ -257,8 +279,22 @@ spec:
                 value: eth0
               - name: NCCL_SOCKET_IFNAME
                 value: eth0
+              - name: NCCL_NET
+                value: IB
+              - name: NCCL_IB_DISABLE
+                value: "0"
               - name: NCCL_IB_HCA
                 value: mlx5_8
+              - name: NCCL_IB_GID_INDEX
+                value: "3"
+              - name: NCCL_IB_ADDR_FAMILY
+                value: AF_INET
+              - name: UCX_TLS
+                value: rc,cuda_copy,cuda_ipc
+              - name: UCX_NET_DEVICES
+                value: mlx5_8:1
+              - name: UCX_IB_GID_INDEX
+                value: "3"
               - name: VLLM_HTTP_TIMEOUT_KEEP_ALIVE
                 value: "120"
               - name: VLLM_LOGGING_LEVEL
@@ -299,6 +335,8 @@ spec:
                 value: "0"
               - name: DECODE_GPU_MEM_UTIL
                 value: "0.95"
+              - name: CANARY_HOLD_ON_EXIT
+                value: "0"
               - name: OPENBLAS_NUM_THREADS
                 value: "1"
               - name: OMP_NUM_THREADS
@@ -378,7 +416,9 @@ spec:
               - name: jit-cache
                 mountPath: /var/cache/vllm
               - name: hf-cache
-                mountPath: /mnt/hf-cache
+                mountPath: /model-cache
+              - name: dev-infiniband
+                mountPath: /dev/infiniband
           - name: node-exporter
             image: quay.io/prometheus/node-exporter:v1.9.0
             imagePullPolicy: IfNotPresent
