@@ -155,26 +155,7 @@ spec:
                 # RUN vLLM GLM-5.2-FP8 prefill worker
                 #################
 
-                if [ "${LWS_GROUP_SIZE:-1}" -gt 1 ]; then
-                  GPU_MEM_UTIL=0.93
-                else
-                  GPU_MEM_UTIL=0.93
-                fi
-
-                # DSpark speculative decoding (multi-node only — must match decode for NIXL KV layer handshake)
-                SPEC_ARGS=""
-                KV_CACHE_DTYPE_ARGS="--kv-cache-dtype fp8"
-                MAX_BATCHED_ARGS=""
-                if [ "${ENABLE_DSPARK:-0}" = "1" ] && [ "${LWS_GROUP_SIZE:-1}" -gt 1 ]; then
-                  GPU_MEM_UTIL=$(python3 -c "print(round($GPU_MEM_UTIL - 0.04, 2))")
-                  MAX_BATCHED_TOKENS=1024
-                  MAX_SEQS=$(( MAX_BATCHED_TOKENS / (DSPARK_NUM_TOKENS + 1) ))
-                  export NVSHMEM_QP_DEPTH=$(( (MAX_BATCHED_TOKENS + 1) * 2 ))
-                  MAX_BATCHED_ARGS="--max-num-batched-tokens ${MAX_BATCHED_TOKENS} --max-num-seqs ${MAX_SEQS}"
-                  SPEC_ARGS="--speculative-config {\"model\":\"${DSPARK_MODEL}\",\"num_speculative_tokens\":${DSPARK_NUM_TOKENS},\"method\":\"dspark\"}"
-                  KV_CACHE_DTYPE_ARGS=""
-                
-                fi
+                GPU_MEM_UTIL=${PREFILL_GPU_MEM_UTIL:-0.9}
 
                 START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
 
@@ -193,17 +174,19 @@ spec:
                                                "spec_name":"TieringOffloadingSpec",
                                                "cpu_bytes_to_use":'"${KV_OFFLOAD_CPU_BYTES:-107374182400}"',
                                                "eviction_policy":"lru"
-                                          }}] 
+                                          }}]
                                           }}'
                 fi
 
-                exec vllm serve $SPEC_ARGS $KV_CACHE_DTYPE_ARGS \
+                exec vllm serve --kv-cache-dtype fp8 \
+                  --speculative-config '{"method":"mtp","num_speculative_tokens":3}' \
                   zai-org/GLM-5.2-FP8 \
+                  --served-model-name zai-org/GLM-5.2-FP8 \
                   --port 8000 \
                   --trust-remote-code \
                   --gpu-memory-utilization $GPU_MEM_UTIL \
                   --disable-access-log-for-endpoints=/health,/metrics \
-                  --max-model-len auto \
+                  --max-model-len 200000 \
                   --data-parallel-multi-port-external-lb \
                   --data-parallel-supervisor-port=8208 \
                   --enable-expert-parallel \
@@ -212,13 +195,18 @@ spec:
                   --data-parallel-size-local $DP_SIZE_LOCAL \
                   --data-parallel-address ${LWS_LEADER_ADDRESS} \
                   --data-parallel-rpc-port 5555 \
-                  --speculative-config '{"method":"mtp","num_speculative_tokens":3}' \
-                  --max-num-batched-tokens 8192 \
+                  --max-num-batched-tokens 2048 \
+                  --max-num-seqs 32 \
+                  --kv-cache-metrics \
+                  --kv-cache-metrics-sample 0.01 \
+                  --cudagraph-metrics \
+                  --enable-mfu-metrics \
+                  --enable-ep-weight-filter \
+                  --safetensors-load-strategy lazy \
                   --data-parallel-start-rank $START_RANK \
                   --kv_transfer_config "$KV_TRANSFER_CONFIG" \
                   --moe-backend deep_gemm \
-                  --all2all-backend deepep_high_throughput \
-                  $MAX_BATCHED_ARGS
+                  --all2all-backend deepep_high_throughput
             env:
               - name: HF_TOKEN
                 valueFrom:
@@ -231,12 +219,6 @@ spec:
                 value: "1"
               - name: KV_OFFLOAD_CPU_BYTES
                 value: "107374182400"
-              - name: ENABLE_DSPARK
-                value: "0"
-              - name: DSPARK_MODEL
-                value: "RedHatAI/GLM-5.2-speculator.dspark"
-              - name: DSPARK_NUM_TOKENS
-                value: "7"
               - name: VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS
                 value: "1"
               - name: VLLM_RANDOMIZE_DP_DUMMY_INPUTS
@@ -251,33 +233,20 @@ spec:
                 value: "1"
               - name: VLLM_USE_DEEP_GEMM
                 value: "1"
-              - name: NVIDIA_GDRCOPY
-                value: enabled
-              - name: NVSHMEM_REMOTE_TRANSPORT
-                value: ibgda
-              - name: NVSHMEM_IB_ENABLE_IBGDA
-                value: "true"
-              - name: NVSHMEM_BOOTSTRAP_UID_SOCK_IFNAME
-                value: eth0
               - name: GLOO_SOCKET_IFNAME
                 value: eth0
               - name: NCCL_SOCKET_IFNAME
                 value: eth0
-              - name: VLLM_COMPUTE_NANS_IN_LOGITS
-                value: "1"
               - name: VLLM_HTTP_TIMEOUT_KEEP_ALIVE
                 value: "120"
               - name: VLLM_LOGGING_LEVEL
                 value: INFO
               - name: PYTHONHASHSEED
                 value: "0"
-              - name: VLLM_SERVER_DEV_MODE
-                value: "1"
               - name: VLLM_NIXL_SIDE_CHANNEL_HOST
                 valueFrom:
                   fieldRef:
                     fieldPath: status.podIP
-
               - name: CUDA_CACHE_PATH
                 value: /var/cache/vllm/cuda
               - name: CCACHE_DIR
@@ -286,7 +255,38 @@ spec:
                 value: /var/cache/vllm/vllm
               - name: FLASHINFER_WORKSPACE_BASE
                 value: /var/cache/vllm/flashinfer
-
+              - name: NVIDIA_GDRCOPY
+                value: enabled
+              - name: NVSHMEM_REMOTE_TRANSPORT
+                value: ibgda
+              - name: NVSHMEM_IB_ENABLE_IBGDA
+                value: "true"
+              - name: NVSHMEM_BOOTSTRAP_UID_SOCK_IFNAME
+                value: eth0
+              - name: NVSHMEM_HCA_PREFIX
+                value: mlx5
+              - name: NVSHMEM_SYMMETRIC_SIZE
+                value: 4G
+              - name: NVSHMEM_IB_ADDR_RANGE
+                value: 0.0.0.0/0
+              - name: NVSHMEM_ENABLE_NIC_PE_MAPPING
+                value: "0"
+              - name: NVSHMEM_IB_GID_INDEX
+                value: "3"
+              - name: NVSHMEM_DEBUG
+                value: INFO
+              - name: VLLM_DEEPEP_HIGH_THROUGHPUT_FORCE_INTRA_NODE
+                value: "0"
+              - name: PREFILL_GPU_MEM_UTIL
+                value: "0.9"
+              - name: OPENBLAS_NUM_THREADS
+                value: "1"
+              - name: OMP_NUM_THREADS
+                value: "1"
+              - name: MKL_NUM_THREADS
+                value: "1"
+              - name: NUMEXPR_NUM_THREADS
+                value: "1"
             ports:
               - containerPort: 8000
                 name: dp0
