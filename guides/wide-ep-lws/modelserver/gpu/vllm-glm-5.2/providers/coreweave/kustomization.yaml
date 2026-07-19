@@ -4,6 +4,7 @@ resources:
   - ../../base
 
 patches:
+  # Common patches for both decode and prefill LWS
   - target:
       kind: LeaderWorkerSet
     patch: |-
@@ -21,19 +22,51 @@ patches:
           hostPath:
             path: /mnt/local/jit-cache
             type: DirectoryOrCreate
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/-
-        value:
-          name: NCCL_IB_HCA
-          value: "ibp"
-      - op: add
-        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/-
-        value:
-          name: NVSHMEM_HCA_PREFIX
-          value: "ibp"
+      - op: remove
+        path: /spec/leaderWorkerTemplate/workerTemplate/metadata/annotations/k8s.v1.cni.cncf.io~1networks
+      - op: remove
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/limits/nvidia.com~1roce_gdr
+      - op: remove
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/requests/nvidia.com~1roce_gdr
       - op: add
         path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/limits/rdma~1ib
         value: "8"
       - op: add
         path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources/requests/rdma~1ib
         value: "8"
+
+  # Decode: override IBM HCA values (env indices: NCCL_IB_HCA=12, NVSHMEM_HCA_PREFIX=28)
+  - target:
+      kind: LeaderWorkerSet
+      name: wide-ep-lws-nvidia-gpu-vllm-glm-5-2-decode
+    patch: |-
+      - op: test
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/12/name
+        value: NCCL_IB_HCA
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/12/value
+        value: "ibp"
+      - op: test
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/28/name
+        value: NVSHMEM_HCA_PREFIX
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/28/value
+        value: "ibp"
+
+  # Prefill: override IBM HCA values (env indices: NCCL_IB_HCA=13, NVSHMEM_HCA_PREFIX=30)
+  - target:
+      kind: LeaderWorkerSet
+      name: wide-ep-lws-nvidia-gpu-vllm-glm-5-2-prefill
+    patch: |-
+      - op: test
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/13/name
+        value: NCCL_IB_HCA
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/13/value
+        value: "ibp"
+      - op: test
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/30/name
+        value: NVSHMEM_HCA_PREFIX
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/30/value
+        value: "ibp"

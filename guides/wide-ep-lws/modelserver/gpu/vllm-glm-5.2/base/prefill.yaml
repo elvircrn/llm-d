@@ -18,6 +18,8 @@ spec:
           llm-d.ai/accelerator-vendor: "nvidia"
           llm-d.ai/model: GLM-5.2-FP8
           llm-d.ai/role: prefill
+        annotations:
+          k8s.v1.cni.cncf.io/networks: multi-nic-h100
       spec:
         serviceAccountName: glm-5-2
         affinity:
@@ -237,6 +239,8 @@ spec:
                 value: eth0
               - name: NCCL_SOCKET_IFNAME
                 value: eth0
+              - name: NCCL_IB_HCA
+                value: mlx5_8
               - name: VLLM_HTTP_TIMEOUT_KEEP_ALIVE
                 value: "120"
               - name: VLLM_LOGGING_LEVEL
@@ -271,6 +275,8 @@ spec:
                 value: "0"
               - name: NVSHMEM_IB_GID_INDEX
                 value: "3"
+              - name: NVSHMEM_HCA_PREFIX
+                value: mlx5
               - name: NVSHMEM_DEBUG
                 value: INFO
               - name: VLLM_DEEPEP_HIGH_THROUGHPUT_FORCE_INTRA_NODE
@@ -341,14 +347,16 @@ spec:
             resources:
               limits:
                 cpu: 64
-                ephemeral-storage: 1Ti
+                ephemeral-storage: 128Gi
                 memory: 1500Gi
                 nvidia.com/gpu: "8"
+                nvidia.com/roce_gdr: "8"
               requests:
                 cpu: 64
-                ephemeral-storage: 1Ti
+                ephemeral-storage: 128Gi
                 memory: 1500Gi
                 nvidia.com/gpu: "8"
+                nvidia.com/roce_gdr: "8"
             volumeMounts:
               - name: dshm
                 mountPath: /dev/shm
