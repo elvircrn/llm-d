@@ -57,7 +57,7 @@ spec:
               type: DirectoryOrCreate
         containers:
           - name: vllm
-            image: vllm/vllm-openai:nightly-94c0ef300180f8fd1071d9cbe7270a8348155f94
+            image: image-registry.openshift-image-registry.svc:5000/tms/tms-vllm-glm52-blog-deepep@sha256:b316246789cdf4bc68f94611598b0940f86f7a836103401b115b45b451fed167
             securityContext:
               capabilities:
                 add:
