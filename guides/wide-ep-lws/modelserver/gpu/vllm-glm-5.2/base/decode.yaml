@@ -281,8 +281,6 @@ spec:
                 value: "true"
               - name: NVSHMEM_BOOTSTRAP_UID_SOCK_IFNAME
                 value: eth0
-              - name: NVSHMEM_HCA_PREFIX
-                value: mlx5
               - name: NVSHMEM_SYMMETRIC_SIZE
                 value: 4G
               - name: NVSHMEM_IB_ADDR_RANGE
