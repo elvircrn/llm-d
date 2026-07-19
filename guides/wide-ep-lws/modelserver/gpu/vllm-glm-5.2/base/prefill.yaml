@@ -57,8 +57,9 @@ spec:
             persistentVolumeClaim:
               claimName: rits-models-pvc
           - name: jit-cache
-            emptyDir:
-              sizeLimit: 64Gi
+            hostPath:
+              path: /mnt/local/jit-cache
+              type: DirectoryOrCreate
           - name: sys
             hostPath:
               path: /sys
