@@ -221,6 +221,9 @@ spec:
                   --max-num-seqs 32 \
                   --kv-cache-metrics \
                   --kv-cache-metrics-sample 0.01 \
+                  --tool-call-parser glm47 \
+                  --reasoning-parser glm45 \
+                  --enable-auto-tool-choice \
                   --cudagraph-metrics \
                   --enable-mfu-metrics \
                   --enable-ep-weight-filter \
