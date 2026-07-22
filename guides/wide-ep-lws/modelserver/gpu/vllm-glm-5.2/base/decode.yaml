@@ -123,15 +123,6 @@ spec:
                 else: print('mla_attention.py already patched')
                 "
 
-                # Hotfix: DeepGemm warmup OOM — remove DP world_size multiplication
-                python3 -c "
-                p='/usr/local/lib/python3.12/dist-packages/vllm/model_executor/warmup/deep_gemm_warmup.py'
-                s=open(p).read()
-                old='max_tokens = get_dp_group().world_size * max_tokens'
-                if old in s:
-                  open(p,'w').write(s.replace(old,'max_tokens = 1')); print('PATCHED deep_gemm_warmup.py')
-                else: print('deep_gemm_warmup.py already patched or pattern not found')
-                "
 
                 # Hotfix: MLA indexer off-by-one (vllm#43970)
                 # expanded_block_table_buffer must match MultiGroupBlockTable padding
