@@ -252,7 +252,7 @@ spec:
               - name: HF_HOME
                 value: /mnt/hf-cache
               - name: ENABLE_PROFILING
-                value: "1"
+                value: "0"
               - name: ENABLE_DSPARK
                 value: "0"
               - name: DSPARK_MODEL
