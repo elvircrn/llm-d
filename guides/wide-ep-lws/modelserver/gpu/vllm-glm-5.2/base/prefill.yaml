@@ -218,6 +218,8 @@ spec:
                     key: HF_TOKEN
               - name: HF_HOME
                 value: /mnt/hf-cache
+              - name: VLLM_USE_V2_MODEL_RUNNER
+                "1"
               - name: ENABLE_KV_OFFLOADING
                 value: "1"
               - name: KV_OFFLOAD_CPU_BYTES
