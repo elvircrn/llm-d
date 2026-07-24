@@ -165,7 +165,7 @@ spec:
                   --trust-remote-code \
                   --gpu-memory-utilization $GPU_MEM_UTIL \
                   --disable-access-log-for-endpoints=/health,/metrics \
-                  --max-model-len 1048576 \
+                  --max-model-len 980000 \
                   --data-parallel-multi-port-external-lb \
                   --data-parallel-supervisor-port=8208 \
                   --enable-expert-parallel \
