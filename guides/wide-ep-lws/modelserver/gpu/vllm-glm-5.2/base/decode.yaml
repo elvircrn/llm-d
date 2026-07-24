@@ -94,7 +94,7 @@ spec:
               type: Directory
         containers:
           - name: vllm
-            image: vllm/vllm-openai:nightly-94c0ef300180f8fd1071d9cbe7270a8348155f94
+            image: vllm/vllm-openai:nightly
             securityContext:
               capabilities:
                 add:
@@ -109,72 +109,6 @@ spec:
             args:
               - |-
                 find /dev/shm -type f -delete
-
-                # Hotfix: add kv_quant_mode to MLAAttention.get_kv_cache_spec (vllm#48379)
-                # PR #47716 fixed deepseek_v4 and sparse_swa but missed mla_attention.py
-                python3 -c "
-                p='/usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/attention/mla_attention.py'
-                s=open(p).read()
-                if 'get_kv_quant_mode' not in s:
-                  s=s.replace('    MLAAttentionSpec,\n)', '    MLAAttentionSpec,\n    get_kv_quant_mode,\n)')
-                  s=s.replace('            cache_dtype_str=vllm_config.cache_config.cache_dtype,\n        )',
-                              '            cache_dtype_str=vllm_config.cache_config.cache_dtype,\n            kv_quant_mode=get_kv_quant_mode(vllm_config.cache_config.cache_dtype),\n        )')
-                  open(p,'w').write(s); print('PATCHED mla_attention.py')
-                else: print('mla_attention.py already patched')
-                "
-
-
-                # Hotfix: MLA indexer off-by-one (vllm#43970)
-                # expanded_block_table_buffer must match MultiGroupBlockTable padding
-                python3 -c "
-                import re
-                p='/usr/local/lib/python3.12/dist-packages/vllm/v1/attention/backends/mla/indexer.py'
-                s=open(p).read()
-                if 'block_size <= 128' not in s:
-                  pat=r'(max_num_blocks_per_req = cdiv\(\s*\n\s+self\.vllm_config\.model_config\.max_model_len,\s*\n\s+self\.kv_cache_spec\.block_size \* get_total_cp_world_size\(\),\s*\n(\s+)\))'
-                  def repl(m):
-                    ind=m.group(2)
-                    return m.group(1)+'\n'+ind+'block_size = self.kv_cache_spec.block_size\n'+ind+'if block_size <= 128:\n'+ind+'    max_num_blocks_per_req = (\n'+ind+'        cdiv(max_num_blocks_per_req, 128 // block_size)\n'+ind+'        * (128 // block_size)\n'+ind+'    )'
-                  new_s=re.sub(pat,repl,s,count=1)
-                  if new_s!=s:
-                    open(p,'w').write(new_s); print('PATCHED indexer.py')
-                  else: print('indexer.py: pattern not found')
-                else: print('indexer.py already patched')
-                "
-
-                # Hotfix: offloading set_ overflow for packed non-uniform KV caches
-                # The indexer group's offset+page_size exceeds block_stride in the packed
-                # layout. Replace set_() with as_strided() to avoid bounds check failure.
-                python3 -c "
-                import re
-                p='/usr/local/lib/python3.12/dist-packages/vllm/distributed/kv_transfer/kv_connector/v1/offloading/worker.py'
-                s=open(p).read()
-                pat = (r'(tensors_per_block\[layer_name\] = \(\n)'
-                       r'(\s+)torch\.tensor\(\n'
-                       r'\s+\[\],\n'
-                       r'\s+dtype=torch\.int8,\n'
-                       r'\s+device=layer_kv_cache\.device,\n'
-                       r'\s+\)\.set_\(\n'
-                       r'\s+layer_kv_cache\.untyped_storage\(\),\n'
-                       r'\s+byte_offset,\n'
-                       r'\s+\(num_blocks, page\),\n'
-                       r'\s+\(block_stride_bytes, 1\),\n'
-                       r'\s+\),\n'
-                       r'(\s+)\)')
-                repl = (r'\1'
-                        r'\2torch.as_strided(\n'
-                        r'\2    torch.empty(0, dtype=torch.int8, device=layer_kv_cache.device).set_(layer_kv_cache.untyped_storage()),\n'
-                        r'\2    (num_blocks, page),\n'
-                        r'\2    (block_stride_bytes, 1),\n'
-                        r'\2    byte_offset,\n'
-                        r'\2),\n'
-                        r'\3)')
-                new_s, n = re.subn(pat, repl, s)
-                if n > 0:
-                  open(p,'w').write(new_s); print('PATCHED worker.py')
-                else:
-                  print('worker.py: no match for set_ pattern')
-                "
 
                 # Scale MAX_TOKENS with number of decode pods
                 export MAX_TOKENS=$(( ${MAX_TOKENS_PER_NODE:-128} * LWS_GROUP_SIZE ))
