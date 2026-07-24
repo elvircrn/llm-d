@@ -217,7 +217,7 @@ spec:
               - name: HF_HOME
                 value: /mnt/hf-cache
               - name: ENABLE_PROFILING
-                value: "0"
+                value: "1"
               - name: VLLM_USE_V2_MODEL_RUNNER
                 value: "1"
               - name: ENABLE_DSPARK
