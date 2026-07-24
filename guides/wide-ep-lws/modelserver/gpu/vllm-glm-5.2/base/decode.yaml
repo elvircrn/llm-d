@@ -110,6 +110,19 @@ spec:
               - |-
                 find /dev/shm -type f -delete
 
+                # Hotfix: disable KV cache zeroing for GLM-5.2 (vllm#49696)
+                # KVBlockZeroer asserts uniform page sizes but GLM-5.2 has two
+                # KV cache groups (MLA + DSA indexer) with different page sizes.
+                python3 -c "
+                p='/usr/local/lib/python3.12/dist-packages/vllm/v1/kv_cache_interface.py'
+                s=open(p).read()
+                old='return self.has_mamba_layers or self.has_mixed_precision_kv_cache'
+                new='return self.has_mamba_layers'
+                if old in s:
+                  open(p,'w').write(s.replace(old,new)); print('PATCHED kv_cache_interface.py: disabled mixed-precision zeroing')
+                else: print('kv_cache_interface.py: patch not needed')
+                "
+
                 # Scale MAX_TOKENS with number of decode pods
                 export MAX_TOKENS=$(( ${MAX_TOKENS_PER_NODE:-128} * LWS_GROUP_SIZE ))
 
