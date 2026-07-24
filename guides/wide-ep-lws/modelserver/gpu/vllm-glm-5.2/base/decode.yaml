@@ -110,6 +110,23 @@ spec:
               - |-
                 find /dev/shm -type f -delete
 
+                # Debug: print KV cache precision set on startup
+                python3 -c "
+                p='/usr/local/lib/python3.12/dist-packages/vllm/v1/kv_cache_interface.py'
+                s=open(p).read()
+                old='kv_cache_precisions = {'
+                new='''kv_cache_precisions_dbg = {
+            (group.kv_cache_spec.dtype, group.kv_cache_spec.kv_quant_mode, type(group.kv_cache_spec).__name__)
+            for group in self.kv_cache_groups
+            if isinstance(group.kv_cache_spec, AttentionSpec)
+        }
+        import logging; logging.getLogger('vllm').warning('KV_CACHE_PRECISIONS: %s', kv_cache_precisions_dbg)
+        kv_cache_precisions = {'''
+                if old in s:
+                  open(p,'w').write(s.replace(old,new,1)); print('PATCHED kv_cache_interface.py: added precision debug logging')
+                else: print('kv_cache_interface.py: debug patch not needed')
+                "
+
                 # Hotfix: disable KV cache zeroing for GLM-5.2 (vllm#49696)
                 # KVBlockZeroer asserts uniform page sizes but GLM-5.2 has two
                 # KV cache groups (MLA + DSA indexer) with different page sizes.
