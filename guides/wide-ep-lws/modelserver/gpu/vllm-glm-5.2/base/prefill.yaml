@@ -57,7 +57,7 @@ spec:
               type: DirectoryOrCreate
         containers:
           - name: vllm
-            image: vllm/vllm-openai:nightly
+            image: vllm/vllm-openai:nightly-dd72658e7db0c6a674f473f6f9f0f5c2ebe7e523
             securityContext:
               capabilities:
                 add:
@@ -118,9 +118,9 @@ spec:
                 #################
 
                 if [ "${LWS_GROUP_SIZE:-1}" -gt 1 ]; then
-                  GPU_MEM_UTIL=0.93
+                  GPU_MEM_UTIL=0.935
                 else
-                  GPU_MEM_UTIL=0.93
+                  GPU_MEM_UTIL=0.935
                 fi
 
                 # DSpark speculative decoding (multi-node only — must match decode for NIXL KV layer handshake)
@@ -165,7 +165,7 @@ spec:
                   --trust-remote-code \
                   --gpu-memory-utilization $GPU_MEM_UTIL \
                   --disable-access-log-for-endpoints=/health,/metrics \
-                  --max-model-len auto \
+                  --max-model-len 1048576 \
                   --data-parallel-multi-port-external-lb \
                   --data-parallel-supervisor-port=8208 \
                   --enable-expert-parallel \
@@ -232,6 +232,8 @@ spec:
                 value: "120"
               - name: VLLM_LOGGING_LEVEL
                 value: INFO
+              - name: VLLM_USE_V2_MODEL_RUNNER
+                value: "1"
               - name: PYTHONHASHSEED
                 value: "0"
               - name: VLLM_SERVER_DEV_MODE

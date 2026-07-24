@@ -94,7 +94,7 @@ spec:
               type: Directory
         containers:
           - name: vllm
-            image: vllm/vllm-openai:nightly
+            image: vllm/vllm-openai:nightly-dd72658e7db0c6a674f473f6f9f0f5c2ebe7e523
             securityContext:
               capabilities:
                 add:
@@ -185,7 +185,7 @@ spec:
                   --port 8200 \
                   --trust-remote-code \
                   --gpu-memory-utilization $GPU_MEM_UTIL \
-                  --max-model-len auto \
+                  --max-model-len 1048576 \
                   --disable-access-log-for-endpoints=/health,/metrics \
                   --data-parallel-multi-port-external-lb \
                   --data-parallel-supervisor-port=8208 \
