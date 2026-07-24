@@ -73,21 +73,24 @@ spec:
               - |-
                 find /dev/shm -type f -delete
 
-                # Debug: print KV cache precision set on startup
+                # Debug: log KV cache precision set on startup
                 python3 -c "
+                import textwrap
                 p='/usr/local/lib/python3.12/dist-packages/vllm/v1/kv_cache_interface.py'
-                s=open(p).read()
-                old='kv_cache_precisions = {'
-                new='''kv_cache_precisions_dbg = {
-            (group.kv_cache_spec.dtype, group.kv_cache_spec.kv_quant_mode, type(group.kv_cache_spec).__name__)
-            for group in self.kv_cache_groups
-            if isinstance(group.kv_cache_spec, AttentionSpec)
-        }
-        import logging; logging.getLogger('vllm').warning('KV_CACHE_PRECISIONS: %s', kv_cache_precisions_dbg)
-        kv_cache_precisions = {'''
-                if old in s:
-                  open(p,'w').write(s.replace(old,new,1)); print('PATCHED kv_cache_interface.py: added precision debug logging')
-                else: print('kv_cache_interface.py: debug patch not needed')
+                patch=textwrap.dedent('''
+                    import logging as _logging
+                    _orig_has_mixed = UniformTypeKVCacheSpecs.has_mixed_precision_kv_cache.fget
+                    @property
+                    def _dbg_has_mixed(self):
+                        from vllm.v1.kv_cache_interface import AttentionSpec
+                        precs = {(g.kv_cache_spec.dtype, g.kv_cache_spec.kv_quant_mode, type(g.kv_cache_spec).__name__) for g in self.kv_cache_groups if isinstance(g.kv_cache_spec, AttentionSpec)}
+                        result = _orig_has_mixed(self)
+                        _logging.getLogger(\"vllm\").warning(\"KV_CACHE_PRECISIONS: \" + repr(precs) + \"  mixed=\" + repr(result))
+                        return result
+                    UniformTypeKVCacheSpecs.has_mixed_precision_kv_cache = _dbg_has_mixed
+                ''')
+                open(p, 'a').write(patch)
+                print('PATCHED kv_cache_interface.py: added precision debug logging')
                 "
 
                 # Hotfix: disable KV cache zeroing for GLM-5.2 (vllm#49696)
