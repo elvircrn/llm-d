@@ -140,6 +140,19 @@ spec:
                   PROFILER_ARGS="--profiler-config {\"profiler\":\"torch\",\"torch_profiler_dir\":\"/var/cache/vllm/profile\",\"torch_profiler_record_shapes\":true,\"torch_profiler_with_memory\":true,\"max_iterations\":3}"
                 fi
 
+                # Hotfix: align expanded_block_table_buffer to 128 (vllm#50050)
+                # BlockTableGroup applies 128-alignment but the indexer buffer
+                # did not, causing a size mismatch crash in _prepare_decode_tensors.
+                python3 -c "
+                p='/usr/local/lib/python3.12/dist-packages/vllm/v1/attention/backends/mla/indexer.py'
+                s=open(p).read()
+                old='get_kv_cache_shard_count(),\n        )\n        self.expanded_block_table_buffer'
+                new='get_kv_cache_shard_count(),\n        )\n        _align = max(1, 128 // self.kv_cache_spec.block_size)\n        max_num_blocks_per_req = cdiv(max_num_blocks_per_req, _align) * _align\n        self.expanded_block_table_buffer'
+                if old in s:
+                  open(p,'w').write(s.replace(old,new)); print('PATCHED indexer.py: added 128-alignment to expanded_block_table_buffer')
+                else: print('indexer.py: patch not needed')
+                "
+
                 exec vllm serve $PROFILER_ARGS $SPEC_ARGS $KV_CACHE_DTYPE_ARGS \
                   zai-org/GLM-5.2-FP8 \
                   --port 8200 \
