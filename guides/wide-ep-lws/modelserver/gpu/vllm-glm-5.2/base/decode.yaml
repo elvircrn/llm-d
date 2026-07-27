@@ -219,6 +219,8 @@ spec:
                 value: "0"
               - name: VLLM_USE_V2_MODEL_RUNNER
                 value: "1"
+              - name: VLLM_COMPUTE_NANS_IN_LOGITS
+                value: "1"
               - name: ENABLE_DSPARK
                 value: "0"
               - name: DSPARK_MODEL
