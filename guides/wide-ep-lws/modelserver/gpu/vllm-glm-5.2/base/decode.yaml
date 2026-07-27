@@ -94,7 +94,7 @@ spec:
               type: Directory
         containers:
           - name: vllm
-            image: vllm/vllm-openai:nightly
+            image: vllm/vllm-openai:nightly-49f31d7cee425a6d38f8c5bc76877986daf832ed
             securityContext:
               capabilities:
                 add:
