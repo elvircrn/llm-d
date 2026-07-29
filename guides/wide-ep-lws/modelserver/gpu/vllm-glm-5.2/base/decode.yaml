@@ -284,6 +284,8 @@ spec:
                   open(p,'w').write(s.replace(old,new)); print('PATCHED v1_block_table_warmup.py: block_table_width param')
                 else: print('v1_block_table_warmup.py: patch not needed')
                 "
+                
+                uv pip install --system nixl==1.3.0 nixl-cu13==1.3.0 --no-deps
 
                 exec vllm serve $PROFILER_ARGS $SPEC_ARGS $KV_CACHE_DTYPE_ARGS \
                   zai-org/GLM-5.2-FP8 \
