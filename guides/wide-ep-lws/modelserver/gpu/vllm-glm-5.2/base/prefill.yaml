@@ -57,7 +57,7 @@ spec:
               type: DirectoryOrCreate
         containers:
           - name: vllm
-            image: vllm/vllm-openai:nightly-49f31d7cee425a6d38f8c5bc76877986daf832ed
+            image: public.ecr.aws/q9t5s3a7/vllm-ci-postmerge-repo:5fa01544480b60275edf913e1a620d229e40553d
             securityContext:
               capabilities:
                 add:
@@ -119,17 +119,149 @@ spec:
                                           }}'
                 fi
 
-                # Hotfix: align expanded_block_table_buffer to 128 (vllm#50050)
-                # BlockTableGroup applies 128-alignment but the indexer buffer
-                # did not, causing a size mismatch crash in _prepare_decode_tensors.
+                # Hotfix: block table width mismatch for DSA indexer (vllm#48404)
+                # Supersedes vllm#50050. When kernel_block_size != kv_cache_block_size
+                # (block splitting), the indexer's expanded_block_table_buffer was sized
+                # using kernel block_size instead of kv_cache block_size, causing a width
+                # mismatch crash in _prepare_decode_tensors.
+
+                # 1/7 kv_cache_interface.py: add utility fns + AttentionSpec fixes
+                python3 -c "
+                p='/usr/local/lib/python3.12/dist-packages/vllm/v1/kv_cache_interface.py'
+                s=open(p).read()
+                ok=True
+                old='from dataclasses import dataclass, fields, replace'
+                new='from dataclasses import dataclass, field, fields, replace'
+                if old in s: s=s.replace(old,new)
+                else: print('kv_cache_interface.py: 1a skip'); ok=False
+                old='    return get_kv_quant_mode(kv_cache_dtype).is_per_token_head\n\n\nclass KVCacheSpecKind'
+                new='    return get_kv_quant_mode(kv_cache_dtype).is_per_token_head\n\n\ndef align_block_table_width(max_num_blocks: int, block_size: int) -> int:\n    \"\"\"Align a block-table row to the width required by attention backends.\"\"\"\n    if block_size > 128:\n        return max_num_blocks\n    alignment = 128 // block_size\n    return cdiv(max_num_blocks, alignment) * alignment\n\n\ndef get_block_table_width(\n    max_num_blocks: int, block_size: int, kernel_block_size: int\n) -> int:\n    \"\"\"Return the block-table width after alignment and block splitting.\"\"\"\n    if block_size % kernel_block_size != 0:\n        raise ValueError(\n            f\"kernel_block_size {kernel_block_size} must divide \"\n            f\"block_size {block_size} evenly\"\n        )\n    max_num_blocks = align_block_table_width(max_num_blocks, block_size)\n    return max_num_blocks * block_size // kernel_block_size\n\n\nclass KVCacheSpecKind'
+                if old in s: s=s.replace(old,new)
+                else: print('kv_cache_interface.py: 1b skip'); ok=False
+                old='    dtype: torch.dtype\n    kv_quant_mode: KVQuantMode = KVQuantMode.NONE'
+                new='    dtype: torch.dtype\n    kv_cache_block_size: int | None = field(default=None, compare=False, repr=False)\n    kv_quant_mode: KVQuantMode = KVQuantMode.NONE'
+                if old in s: s=s.replace(old,new)
+                else: print('kv_cache_interface.py: 1c skip'); ok=False
+                old='        return cdiv(max_len, self.block_size * kv_shard_count)\n\n\n@dataclass(frozen=True, kw_only=True)\nclass FullAttentionSpec(AttentionSpec):'
+                new='        return cdiv(max_len, self.block_table_block_size * kv_shard_count)\n\n    @property\n    def block_table_block_size(self) -> int:\n        return self.kv_cache_block_size or self.block_size\n\n    def copy_with_new_block_size(self, block_size: int) -> Self:\n        return replace(\n            self,\n            block_size=block_size,\n            kv_cache_block_size=self.block_table_block_size,\n        )\n\n\n@dataclass(frozen=True, kw_only=True)\nclass FullAttentionSpec(AttentionSpec):'
+                if old in s: s=s.replace(old,new)
+                else: print('kv_cache_interface.py: 1d skip'); ok=False
+                if ok:
+                  open(p,'w').write(s); print('PATCHED kv_cache_interface.py: block table width utilities + AttentionSpec fixes')
+                "
+
+                # 2/7 indexer.py: fix imports + buffer sizing
                 python3 -c "
                 p='/usr/local/lib/python3.12/dist-packages/vllm/v1/attention/backends/mla/indexer.py'
                 s=open(p).read()
-                old='get_kv_cache_shard_count(),\n        )\n        self.expanded_block_table_buffer'
-                new='get_kv_cache_shard_count(),\n        )\n        _align = max(1, 128 // self.kv_cache_spec.block_size)\n        max_num_blocks_per_req = cdiv(max_num_blocks_per_req, _align) * _align\n        self.expanded_block_table_buffer'
+                ok=True
+                old='from vllm.utils.math_utils import cdiv\nfrom vllm.utils.platform_utils'
+                new='from vllm.utils.platform_utils'
+                if old in s: s=s.replace(old,new)
+                else: print('indexer.py: 2a skip'); ok=False
+                old='from vllm.v1.kv_cache_interface import AttentionSpec, MLAAttentionSpec\nfrom vllm.v1.worker.cp_utils import get_kv_cache_shard_count'
+                new='from vllm.v1.kv_cache_interface import (\n    AttentionSpec,\n    MLAAttentionSpec,\n    get_block_table_width,\n)'
+                if old in s: s=s.replace(old,new)
+                else: print('indexer.py: 2b skip'); ok=False
+                old='        max_num_blocks_per_req = cdiv(\n            self.vllm_config.model_config.max_model_len,\n            self.kv_cache_spec.block_size * get_kv_cache_shard_count(),\n        )\n        self.expanded_block_table_buffer = torch.zeros(\n            (\n                scheduler_config.max_num_batched_tokens,\n                max_num_blocks_per_req,\n            ),'
+                new='        max_num_blocks_per_req = self.kv_cache_spec.max_num_blocks_per_req(\n            self.vllm_config, self.vllm_config.model_config.max_model_len\n        )\n        max_num_blocks_per_req = get_block_table_width(\n            max_num_blocks_per_req,\n            self.kv_cache_spec.block_table_block_size,\n            self.kv_cache_spec.block_size,\n        )\n        self.expanded_block_table_buffer = torch.zeros(\n            (scheduler_config.max_num_batched_tokens, max_num_blocks_per_req),'
+                if old in s: s=s.replace(old,new)
+                else: print('indexer.py: 2c skip'); ok=False
+                if ok:
+                  open(p,'w').write(s); print('PATCHED indexer.py: fixed expanded_block_table_buffer width')
+                "
+
+                # 3/7 block_table.py: BlockTable param rename + MultiGroupBlockTable fix
+                python3 -c "
+                p='/usr/local/lib/python3.12/dist-packages/vllm/v1/worker/block_table.py'
+                s=open(p).read()
+                ok=True
+                old='from vllm.utils.math_utils import cdiv\nfrom vllm.v1.attention.backends.utils import PAD_SLOT_ID'
+                new='from vllm.v1.attention.backends.utils import PAD_SLOT_ID\nfrom vllm.v1.kv_cache_interface import get_block_table_width'
+                if old in s: s=s.replace(old,new)
+                else: print('block_table.py: 3a skip'); ok=False
+                old='        max_num_blocks_per_req: int,\n        max_num_batched_tokens: int,'
+                new='        block_table_width: int,\n        max_num_batched_tokens: int,'
+                if old in s: s=s.replace(old,new)
+                else: print('block_table.py: 3b skip'); ok=False
+                old='            max_num_blocks_per_req: Maximum number of blocks per request.'
+                new='            block_table_width: Number of entries in each block-table row.'
+                if old in s: s=s.replace(old,new)
+                else: print('block_table.py: 3c skip'); ok=False
+                old='        self.max_num_blocks_per_req = max_num_blocks_per_req * self.blocks_per_kv_block'
+                new='        self.max_num_blocks_per_req = block_table_width'
+                if old in s: s=s.replace(old,new)
+                else: print('block_table.py: 3d skip'); ok=False
+                old='        # Align to a multiple of (128 / block_size) as required\n        # by some attention backends such as TRTLLM (#39324)\n        max_num_blocks = [\n            cdiv(n, 128 // bs) * (128 // bs) if bs <= 128 else n\n            for n, bs in zip(max_num_blocks, block_sizes)\n        ]\n\n        self.block_tables = [\n            BlockTable(\n                block_size,\n                max_num_reqs,\n                max_num_blocks_per_req,\n                max_num_batched_tokens,\n                pin_memory,\n                device,\n                kernel_block_size,\n                cp_kv_cache_interleave_size,\n                slot_mapping_mode=slot_mapping_mode,\n            )\n            for (\n                block_size,\n                kernel_block_size,\n                max_num_blocks_per_req,\n                slot_mapping_mode,\n            ) in zip(\n                block_sizes, kernel_block_sizes, max_num_blocks, slot_mapping_modes\n            )\n        ]'
+                new='        block_table_widths = [\n            get_block_table_width(n, bs, kbs)\n            for n, bs, kbs in zip(max_num_blocks, block_sizes, kernel_block_sizes)\n        ]\n\n        self.block_tables = [\n            BlockTable(\n                block_size,\n                max_num_reqs,\n                block_table_width,\n                max_num_batched_tokens,\n                pin_memory,\n                device,\n                kernel_block_size,\n                cp_kv_cache_interleave_size,\n                slot_mapping_mode=slot_mapping_mode,\n            )\n            for (\n                block_size,\n                kernel_block_size,\n                block_table_width,\n                slot_mapping_mode,\n            ) in zip(\n                block_sizes,\n                kernel_block_sizes,\n                block_table_widths,\n                slot_mapping_modes,\n            )\n        ]'
+                if old in s: s=s.replace(old,new)
+                else: print('block_table.py: 3e skip'); ok=False
+                if ok:
+                  open(p,'w').write(s); print('PATCHED block_table.py: block_table_width param + get_block_table_width')
+                "
+
+                # 4/7 gpu/block_table.py: rename param, remove multiplication
+                python3 -c "
+                p='/usr/local/lib/python3.12/dist-packages/vllm/v1/worker/gpu/block_table.py'
+                s=open(p).read()
+                ok=True
+                old='        max_num_blocks_per_group: list[int],\n        device: torch.device,'
+                new='        block_table_widths: list[int],\n        device: torch.device,'
+                if old in s: s=s.replace(old,new)
+                else: print('gpu/block_table.py: 4a skip'); ok=False
+                old='        assert len(max_num_blocks_per_group) == self.num_kv_cache_groups'
+                new='        assert len(block_table_widths) == self.num_kv_cache_groups'
+                if old in s: s=s.replace(old,new)
+                else: print('gpu/block_table.py: 4b skip'); ok=False
+                old='        for i in range(self.num_kv_cache_groups):\n            max_num_blocks = max_num_blocks_per_group[i] * self.blocks_per_kv_block[i]\n            block_table = StagedWriteTensor(\n                (self.max_num_reqs, max_num_blocks), dtype=torch.int32, device=device\n            )'
+                new='        for i in range(self.num_kv_cache_groups):\n            block_table = StagedWriteTensor(\n                (self.max_num_reqs, block_table_widths[i]),\n                dtype=torch.int32,\n                device=device,\n            )'
+                if old in s: s=s.replace(old,new)
+                else: print('gpu/block_table.py: 4c skip'); ok=False
+                if ok:
+                  open(p,'w').write(s); print('PATCHED gpu/block_table.py: block_table_widths param')
+                "
+
+                # 5/7 gpu/model_runner.py: add imports, fix width computation
+                python3 -c "
+                p='/usr/local/lib/python3.12/dist-packages/vllm/v1/worker/gpu/model_runner.py'
+                s=open(p).read()
+                ok=True
+                old='from vllm.v1.kv_cache_interface import KVCacheConfig, MambaSpec'
+                new='from vllm.v1.kv_cache_interface import (\n    KVCacheConfig,\n    MambaSpec,\n    align_block_table_width,\n    get_block_table_width,\n)'
+                if old in s: s=s.replace(old,new)
+                else: print('gpu/model_runner.py: 5a skip'); ok=False
+                old='            # Align to a multiple of (128 / block_size) as required by some attention\n            # backends such as TRTLLM (#39324)\n            if spec.block_size <= 128:\n                alignment = 128 // spec.block_size\n                max_num_blocks = cdiv(max_num_blocks, alignment) * alignment\n            # For Mamba/Hybrid Model, KVCaches need extra blocks for speculative tokens\n            if isinstance(spec, MambaSpec):\n                max_num_blocks = ('
+                new='            # For Mamba/Hybrid Model, KVCaches need extra blocks for speculative tokens\n            if isinstance(spec, MambaSpec):\n                max_num_blocks = align_block_table_width(\n                    max_num_blocks, spec.block_size\n                )\n                max_num_blocks = ('
+                if old in s: s=s.replace(old,new)
+                else: print('gpu/model_runner.py: 5b skip'); ok=False
+                old='        self.block_tables = BlockTables(\n            block_sizes=block_sizes,\n            max_num_reqs=self.max_num_reqs,\n            max_num_batched_tokens=self.max_num_tokens,\n            max_num_blocks_per_group=max_num_blocks_per_group,'
+                new='        block_table_widths = []\n        for group_id, (kv_cache_group, max_num_blocks) in enumerate(\n            zip(kv_cache_config.kv_cache_groups, max_num_blocks_per_group)\n        ):\n            spec = kv_cache_group.kv_cache_spec\n            if not isinstance(spec, MambaSpec):\n                max_num_blocks = get_block_table_width(\n                    max_num_blocks,\n                    spec.block_size,\n                    self.kernel_block_sizes[group_id],\n                )\n            block_table_widths.append(max_num_blocks)\n\n        self.block_tables = BlockTables(\n            block_sizes=block_sizes,\n            max_num_reqs=self.max_num_reqs,\n            max_num_batched_tokens=self.max_num_tokens,\n            block_table_widths=block_table_widths,'
+                if old in s: s=s.replace(old,new)
+                else: print('gpu/model_runner.py: 5c skip'); ok=False
+                if ok:
+                  open(p,'w').write(s); print('PATCHED gpu/model_runner.py: block_table_widths computation')
+                "
+
+                # 6/7 qwen_triton_warmup.py: rename param
+                python3 -c "
+                p='/usr/local/lib/python3.12/dist-packages/vllm/model_executor/warmup/qwen_triton_warmup.py'
+                s=open(p).read()
+                old='            max_num_blocks_per_req=block_table_stride,'
+                new='            block_table_width=block_table_stride,'
                 if old in s:
-                  open(p,'w').write(s.replace(old,new)); print('PATCHED indexer.py: added 128-alignment to expanded_block_table_buffer')
-                else: print('indexer.py: patch not needed')
+                  open(p,'w').write(s.replace(old,new)); print('PATCHED qwen_triton_warmup.py: block_table_width param')
+                else: print('qwen_triton_warmup.py: patch not needed')
+                "
+
+                # 7/7 v1_block_table_warmup.py: rename param
+                python3 -c "
+                p='/usr/local/lib/python3.12/dist-packages/vllm/model_executor/warmup/v1_block_table_warmup.py'
+                s=open(p).read()
+                old='            max_num_blocks_per_req=max_num_blocks_per_req,'
+                new='            block_table_width=max_num_blocks_per_req,'
+                if old in s:
+                  open(p,'w').write(s.replace(old,new)); print('PATCHED v1_block_table_warmup.py: block_table_width param')
+                else: print('v1_block_table_warmup.py: patch not needed')
                 "
 
                 exec vllm serve $SPEC_ARGS $KV_CACHE_DTYPE_ARGS \
