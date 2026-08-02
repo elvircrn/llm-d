@@ -93,6 +93,8 @@ spec:
                   KV_CACHE_DTYPE_ARGS=""
                   curl -sSL "${DSPARK_HOTFIX_URL}" \
                     -o /usr/local/lib/python3.12/dist-packages/vllm/v1/worker/gpu/spec_decode/dflash/speculator.py
+                  sed -i 's/raise ValueError.*pard_token.*/pass/' \
+                    /usr/local/lib/python3.12/dist-packages/vllm/v1/spec_decode/llm_base_proposer.py
                 elif [ "${ENABLE_MTP:-1}" = "1" ]; then
                   SPEC_ARGS="--speculative-config {\"method\":\"mtp\",\"num_speculative_tokens\":${MTP_NUM_TOKENS:-3}}"
                 fi
