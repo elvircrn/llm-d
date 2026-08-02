@@ -116,13 +116,25 @@ spec:
                 # Wide-EP (multi-node): reserve VRAM for NVSHMEM symmetric heap
                 GPU_MEM_UTIL=${DECODE_GPU_MEM_UTIL:-0.95}
 
-                # DeepEP low-latency requires: qp_depth >= (max_dispatch_tokens + 1) * 2
-                export NVSHMEM_QP_DEPTH=$(( (MAX_TOKENS + 1) * 2 ))
+                MAX_BATCHED_TOKENS=${MAX_TOKENS}
+                MAX_SEQS=${MAX_TOKENS}
+                SPEC_ARGS=""
+                KV_CACHE_DTYPE_ARGS="--kv-cache-dtype fp8"
 
-                MTP_ARGS=""
-                if [ "${ENABLE_MTP:-1}" = "1" ]; then
-                  MTP_ARGS="--speculative-config {\"method\":\"mtp\",\"num_speculative_tokens\":${MTP_NUM_TOKENS:-3}}"
+                if [ "${ENABLE_DSPARK:-0}" = "1" ] && [ "${LWS_GROUP_SIZE:-1}" -gt 1 ]; then
+                  GPU_MEM_UTIL=$(python3 -c "print(round($GPU_MEM_UTIL - 0.07, 2))")
+                  MAX_SEQS=$(( MAX_TOKENS / 4 ))
+                  MAX_BATCHED_TOKENS=$(( MAX_SEQS * (DSPARK_NUM_TOKENS + 1) ))
+                  SPEC_ARGS="--speculative-config {\"model\":\"${DSPARK_MODEL}\",\"num_speculative_tokens\":${DSPARK_NUM_TOKENS},\"method\":\"dspark\"}"
+                  KV_CACHE_DTYPE_ARGS=""
+                  curl -sSL "${DSPARK_HOTFIX_URL}" \
+                    -o /usr/local/lib/python3.12/dist-packages/vllm/v1/worker/gpu/spec_decode/dflash/speculator.py
+                elif [ "${ENABLE_MTP:-1}" = "1" ]; then
+                  SPEC_ARGS="--speculative-config {\"method\":\"mtp\",\"num_speculative_tokens\":${MTP_NUM_TOKENS:-3}}"
                 fi
+
+                # DeepEP low-latency requires: qp_depth >= (max_dispatch_tokens + 1) * 2
+                export NVSHMEM_QP_DEPTH=$(( (MAX_BATCHED_TOKENS + 1) * 2 ))
 
                 START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
 
@@ -132,7 +144,7 @@ spec:
                   PROFILER_ARGS="--profiler-config {\"profiler\":\"torch\",\"torch_profiler_dir\":\"/var/cache/vllm/profile\",\"torch_profiler_record_shapes\":true,\"torch_profiler_with_memory\":true,\"max_iterations\":3}"
                 fi
 
-                exec vllm serve $PROFILER_ARGS $MTP_ARGS --kv-cache-dtype fp8 \
+                exec vllm serve $PROFILER_ARGS $SPEC_ARGS $KV_CACHE_DTYPE_ARGS \
                   zai-org/GLM-5.2-FP8 \
                   --port 8200 \
                   --trust-remote-code \
@@ -143,8 +155,8 @@ spec:
                   --data-parallel-supervisor-port=8208 \
                   --enable-expert-parallel \
                   --tensor-parallel-size $TP_SIZE \
-                  --max-num-batched-tokens ${MAX_TOKENS} \
-                  --max-num-seqs ${MAX_TOKENS} \
+                  --max-num-batched-tokens ${MAX_BATCHED_TOKENS} \
+                  --max-num-seqs ${MAX_SEQS} \
                   --data-parallel-size $((LWS_GROUP_SIZE * DP_SIZE_LOCAL)) \
                   --data-parallel-size-local $DP_SIZE_LOCAL \
                   --data-parallel-address ${LWS_LEADER_ADDRESS} \
@@ -177,6 +189,16 @@ spec:
                 value: "1"
               - name: MTP_NUM_TOKENS
                 value: "3"
+              - name: ENABLE_DSPARK
+                value: "0"
+              - name: DSPARK_MODEL
+                value: ""
+              - name: DSPARK_NUM_TOKENS
+                value: "5"
+              - name: DSPARK_HOTFIX_URL
+                value: "https://raw.githubusercontent.com/elvircrn/vllm/elvircrn/fix-dspark-fa3-aot-head-counts/vllm/v1/worker/gpu/spec_decode/dflash/speculator.py"
+              - name: VLLM_COMPUTE_NANS_IN_LOGITS
+                value: ""
               - name: VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS
                 value: "1"
               - name: MAX_TOKENS_PER_NODE

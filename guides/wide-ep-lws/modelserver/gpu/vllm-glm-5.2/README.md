@@ -63,7 +63,7 @@ to a deployment's `kustomization.yaml` under `components:`.
 | `no-mtp` | prefill + decode | Disables MTP speculative decoding (`ENABLE_MTP=0`) |
 | `offloading-cpu` | prefill only | CPU-only KV cache offloading (`OFFLOADING_MODE=cpu`) |
 | `offloading-tiered` | prefill only | CPU + NVMe tiered KV cache offloading (`OFFLOADING_MODE=tiered`) |
-
+| `dspark` | prefill + decode | DSpark speculative decoding (disables MTP, multi-node only) |
 
 K8s takes the last duplicate env var, so appended values override the base defaults.
 
