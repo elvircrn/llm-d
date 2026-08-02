@@ -143,6 +143,8 @@ topology patches. Each matches a tested configuration on CoreWeave H200:
 | MTP + Offloading | `benchmark/mtp-offloading/` | `offloading-tiered` |
 | Offloading | `benchmark/offloading/` | `no-mtp` + `offloading-tiered` |
 | Full ISL + MTP + Offloading | `benchmark/full-isl-mtp-offloading/` | `offloading-tiered` |
+| DSpark | `benchmark/dspark/` | `dspark` |
+| DSpark + Offloading | `benchmark/dspark-offloading/` | `dspark` + `offloading-tiered` |
 
 Deploy a benchmark config:
 
