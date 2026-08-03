@@ -129,7 +129,7 @@ spec:
                   KV_CACHE_DTYPE_ARGS=""
                   curl -sSL "${DSPARK_HOTFIX_URL}" \
                     -o /usr/local/lib/python3.12/dist-packages/vllm/v1/worker/gpu/spec_decode/dflash/speculator.py
-                  python3 -c "import re; f='/usr/local/lib/python3.12/dist-packages/vllm/v1/spec_decode/llm_base_proposer.py'; t=open(f).read(); t=re.sub(r'raise ValueError\([^)]*pard_token[^)]*\)', 'self.parallel_drafting_token_id = 0; self.pass_hidden_states_to_model = False', t, flags=re.DOTALL); open(f,'w').write(t)"
+                  python3 -c "import re; f='/usr/local/lib/python3.12/dist-packages/vllm/v1/spec_decode/llm_base_proposer.py'; t=open(f).read(); t=re.sub(r'raise ValueError\([^)]*pard_token[^)]*\)', 'self.parallel_drafting_token_id = 0; self.pass_hidden_states_to_model = False', t, flags=re.DOTALL); t=t.replace('\"mtp\", \"draft_model\", \"dflash\"', '\"mtp\", \"draft_model\", \"dflash\", \"dspark\"'); t=t.replace('\"eagle3\", \"dflash\"', '\"eagle3\", \"dflash\", \"dspark\"'); open(f,'w').write(t)"
                 elif [ "${ENABLE_MTP:-1}" = "1" ]; then
                   SPEC_ARGS="--speculative-config {\"method\":\"mtp\",\"num_speculative_tokens\":${MTP_NUM_TOKENS:-3}}"
                 fi
