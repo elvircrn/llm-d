@@ -1,7 +1,7 @@
 apiVersion: leaderworkerset.x-k8s.io/v1
 kind: LeaderWorkerSet
 metadata:
-  name: wide-ep-lws-nvidia-gpu-vllm-dsv4-flash-0731-prefill
+  name: wide-ep-lws-vllm-dsv4-flash-0731-prefill
   labels:
     llm-d.ai/model: DeepSeek-V4-Flash-0731
     llm-d.ai/role: prefill
