@@ -73,10 +73,18 @@ spec:
               - |-
                 find /dev/shm -type f -delete
 
-                # Cherry-pick vllm PR 50511: MoE padding-row fix for DeepEP v2 decode
-                pip install --no-deps \
-                  "vllm @ git+https://github.com/vllm-project/vllm.git@refs/pull/50511/head" \
-                  2>&1 | tail -5 || true
+                # Cherry-pick vllm PR 50511: MoE padding-row fix for DeepEP v2
+                VLLM_SITE=$(python3 -c "import vllm, pathlib; print(pathlib.Path(vllm.__file__).parent)")
+                PR_SHA=8b3f9dd33ee4f65c0c0b16b4527ebf5fb768ecd1
+                for f in \
+                  model_executor/layers/fused_moe/experts/triton_moe.py \
+                  model_executor/layers/fused_moe/moe_fused_mul_sum.py \
+                  model_executor/layers/fused_moe/prepare_finalize/deepep_v2.py \
+                  model_executor/layers/fused_moe/utils.py; do
+                  curl -sL "https://raw.githubusercontent.com/vllm-project/vllm/${PR_SHA}/vllm/${f}" \
+                    -o "${VLLM_SITE}/${f}"
+                done
+                echo "Applied PR 50511 (${PR_SHA:0:8})"
 
                 GPU_MEM_UTIL=${PREFILL_GPU_MEM_UTIL:-0.935}
 
@@ -137,8 +145,8 @@ spec:
                   --max-num-batched-tokens 2048 \
                   --data-parallel-start-rank $START_RANK \
                   --kv_transfer_config "$KV_TRANSFER_CONFIG" \
-                  --moe-backend humming \
                   --all2all-backend deepep_v2 \
+                  --language-model-only \
                   --kv-cache-dtype fp8 \
                   --block-size 256
             env:
