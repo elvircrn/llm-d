@@ -114,8 +114,12 @@ spec:
 
                 GPU_MEM_UTIL=${DECODE_GPU_MEM_UTIL:-0.95}
 
-                MAX_BATCHED_TOKENS=${MAX_TOKENS}
                 MAX_SEQS=${MAX_TOKENS}
+                if [ "${ENABLE_DSPARK:-1}" = "1" ]; then
+                  MAX_BATCHED_TOKENS=$(( MAX_SEQS * (${DSPARK_NUM_TOKENS:-5} + 1) ))
+                else
+                  MAX_BATCHED_TOKENS=${MAX_TOKENS}
+                fi
 
                 # DeepEP low-latency requires: qp_depth >= (max_dispatch_tokens + 1) * 2
                 export NVSHMEM_QP_DEPTH=$(( (MAX_BATCHED_TOKENS + 1) * 2 ))
@@ -130,7 +134,7 @@ spec:
 
                 SPEC_ARGS=""
                 if [ "${ENABLE_DSPARK:-1}" = "1" ]; then
-                  SPEC_ARGS="--speculative-config {\"method\":\"dspark\",\"num_speculative_tokens\":${DSPARK_NUM_TOKENS:-1}}"
+                  SPEC_ARGS="--speculative-config {\"method\":\"dspark\",\"num_speculative_tokens\":${DSPARK_NUM_TOKENS:-5}}"
                 fi
 
                 exec vllm serve $PROFILER_ARGS $SPEC_ARGS \
@@ -180,7 +184,7 @@ spec:
               - name: ENABLE_DSPARK
                 value: "1"
               - name: DSPARK_NUM_TOKENS
-                value: "1"
+                value: "5"
               - name: VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS
                 value: "1"
               - name: MAX_TOKENS_PER_NODE
