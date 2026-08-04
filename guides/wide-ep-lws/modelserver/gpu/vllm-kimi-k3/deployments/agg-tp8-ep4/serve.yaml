@@ -71,8 +71,9 @@ spec:
               - |-
                 find /dev/shm -type f -delete
 
-                # Cherry-pick vllm PR 50511: MoE padding-row fix for DeepEP v2
                 VLLM_SITE=$(python3 -c "import vllm, pathlib; print(pathlib.Path(vllm.__file__).parent)")
+
+                # Cherry-pick vllm PR 50511: MoE padding-row fix for DeepEP v2
                 PR_SHA=8b3f9dd33ee4f65c0c0b16b4527ebf5fb768ecd1
                 for f in \
                   model_executor/layers/fused_moe/experts/triton_moe.py \
@@ -84,19 +85,30 @@ spec:
                 done
                 echo "Applied PR 50511 (${PR_SHA:0:8})"
 
-                GPU_MEM_UTIL=${GPU_MEM_UTIL:-0.85}
+                # Cherry-pick vllm PR 50510: enable SiTU activation in humming MoE backend
+                sed -i '/MoEActivation.SWIGLUOAI,/a\            MoEActivation.SITU,' \
+                  "${VLLM_SITE}/model_executor/layers/fused_moe/experts/fused_humming_moe.py"
+                echo "Applied PR 50510 (humming SiTU)"
+
+                # MLA dcp_world_size lazy-init workaround (fixes cp_world_size must be positive)
+                MLA_PY="${VLLM_SITE}/models/kimi_k3/nvidia/mla.py"
+                if [ -f "$MLA_PY" ] && ! grep -q "dcp_world_size" "$MLA_PY"; then
+                  sed -i 's/            latent_out, _lse = self.impl.forward_mqa(/            if getattr(self.impl, "dcp_world_size", 1) == -1:\n                try:\n                    from vllm.distributed.parallel_state import get_dcp_group\n                    self.impl.dcp_world_size = get_dcp_group().world_size\n                except (AssertionError, Exception):\n                    self.impl.dcp_world_size = 1\n            latent_out, _lse = self.impl.forward_mqa(/' "$MLA_PY"
+                  echo "Patched mla.py (dcp_world_size)"
+                fi
+
+                GPU_MEM_UTIL=${GPU_MEM_UTIL:-0.90}
 
                 START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
 
                 exec vllm serve \
-                  moonshotai/Kimi-K3 \
+                  mgoin/Kimi-K3-pruned75 \
                   --port 8000 \
                   --trust-remote-code \
                   --gpu-memory-utilization $GPU_MEM_UTIL \
-                  --max-model-len ${MAX_MODEL_LEN:-auto} \
+                  --max-model-len ${MAX_MODEL_LEN:-8192} \
                   --disable-access-log-for-endpoints=/health,/metrics \
                   --data-parallel-external-lb \
-                  --data-parallel-supervisor-port=8208 \
                   --enable-expert-parallel \
                   --tensor-parallel-size $TP_SIZE \
                   --data-parallel-size $((LWS_GROUP_SIZE * DP_SIZE_LOCAL)) \
@@ -106,8 +118,11 @@ spec:
                   --data-parallel-rank $START_RANK \
                   --all2all-backend deepep_v2 \
                   --language-model-only \
-                  --kv-cache-dtype fp8 \
-                  --max-num-batched-tokens 512 \
+                  --attention-backend FLASHMLA \
+                  --moe-backend humming \
+                  --disable-custom-all-reduce \
+                  --no-enable-flashinfer-autotune \
+                  --max-num-batched-tokens 4096 \
                   --max-num-seqs 256
             env:
               - name: HF_TOKEN
@@ -120,9 +135,9 @@ spec:
               - name: GPU_MEM_UTIL
                 value: ""
               - name: MAX_MODEL_LEN
-                value: "auto"
+                value: "8192"
               - name: VLLM_USE_V2_MODEL_RUNNER
-                value: "0"
+                value: "1"
               - name: VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS
                 value: "1"
               - name: VLLM_RANDOMIZE_DP_DUMMY_INPUTS
@@ -165,6 +180,10 @@ spec:
                 value: /var/cache/vllm/vllm
               - name: FLASHINFER_WORKSPACE_BASE
                 value: /var/cache/vllm/flashinfer
+              - name: PYTORCH_CUDA_ALLOC_CONF
+                value: "expandable_segments:True"
+              - name: NCCL_DMABUF_ENABLE
+                value: "0"
               - name: NCCL_IB_HCA
                 value: "ibp"
               - name: NVSHMEM_HCA_PREFIX
@@ -173,13 +192,10 @@ spec:
               - containerPort: 8000
                 name: dp0
                 protocol: TCP
-              - containerPort: 8208
-                name: supervisor
-                protocol: TCP
             startupProbe:
               httpGet:
                 path: /health
-                port: supervisor
+                port: dp0
               initialDelaySeconds: 0
               periodSeconds: 1
               timeoutSeconds: 5
@@ -187,14 +203,14 @@ spec:
             livenessProbe:
               httpGet:
                 path: /health
-                port: supervisor
+                port: dp0
               periodSeconds: 30
               timeoutSeconds: 5
               failureThreshold: 3
             readinessProbe:
               httpGet:
-                path: /readyz
-                port: supervisor
+                path: /health
+                port: dp0
               periodSeconds: 10
               timeoutSeconds: 5
               failureThreshold: 3
