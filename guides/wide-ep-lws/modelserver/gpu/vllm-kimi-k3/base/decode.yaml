@@ -163,7 +163,7 @@ spec:
                                           "kv_role":"kv_both",
                                           "kv_load_failure_policy":"fail"}' \
                   --all2all-backend deepep_v2 \
-                  --language-model-only \      
+                  --language-model-only \
                   --kv-cache-dtype fp8 \
                   --block-size 256 \
                   ${KV_CACHE_MEMORY_BYTES:+--kv-cache-memory-bytes=$KV_CACHE_MEMORY_BYTES}
