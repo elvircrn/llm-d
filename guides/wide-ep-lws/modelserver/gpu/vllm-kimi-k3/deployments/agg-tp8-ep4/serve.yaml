@@ -193,6 +193,32 @@ spec:
                   echo "Patched mla.py (dcp_world_size)"
                 fi
 
+                # PR 43680: uniform_random routing must sample WITHOUT replacement.
+                # torch.randint can pick the same expert twice per token, violating
+                # DeepEP v2's warp-dedup dispatch precondition. Use torch.topk on
+                # random scores, which yields distinct expert ids.
+                ROUTER_PY="${VLLM_SITE}/model_executor/layers/fused_moe/router/routing_simulator_router.py"
+                if [ -f "$ROUTER_PY" ] && ! grep -q "avoid duplicate topk_ids" "$ROUTER_PY"; then
+                  python3 - "$ROUTER_PY" << 'PYEOF'
+                import re, sys
+                p = sys.argv[1]
+                s = open(p).read()
+                pat = re.compile(
+                    r'# Uniform random sampling\n\s*return torch\.randint\(\n.*?device=device,\n\s*\)',
+                    re.DOTALL,
+                )
+                repl = (
+                    '# We do this to avoid duplicate topk_ids.\n'
+                    '            scores = torch.rand(num_tokens, num_experts, device=device)\n'
+                    '            _, topk_ids = torch.topk(scores, top_k, dim=-1)\n'
+                    '            return topk_ids.to(indices_type)'
+                )
+                s, n = pat.subn(repl, s)
+                open(p, 'w').write(s)
+                print('Patched routing_simulator_router.py (PR 43680):', 'ok' if n else 'FAILED (pattern not found)')
+                PYEOF
+                fi
+
                 if [ ! -f "$SITU_SO" ]; then
                   echo "FATAL: ${SITU_SO} was not built; aborting so the pod restarts and retries."
                   exit 1
@@ -211,6 +237,8 @@ spec:
                   --disable-access-log-for-endpoints=/health,/metrics \
                   --data-parallel-external-lb \
                   --enable-expert-parallel \
+                  --hf-overrides '{"num_hidden_layers": 8}' \
+                  --load-format dummy \
                   --tensor-parallel-size $TP_SIZE \
                   --data-parallel-size $((LWS_GROUP_SIZE * DP_SIZE_LOCAL)) \
                   --data-parallel-size-local $DP_SIZE_LOCAL \
@@ -225,7 +253,6 @@ spec:
                   --no-enable-flashinfer-autotune \
                   --max-num-batched-tokens 128 \
                   --max-num-seqs 128 \
-                  --kv-cache-dtype fp8 \
                   --profiler-config '{"profiler": "torch", "torch_profiler_dir": "/tmp/vllm_profile", "capture_torch_profiler": true, "max_iterations": 4, "torch_profiler_with_stack": true, "torch_profiler_use_gzip": true, "torch_profiler_dump_cuda_time_total": true}'
             env:
               - name: HF_TOKEN
