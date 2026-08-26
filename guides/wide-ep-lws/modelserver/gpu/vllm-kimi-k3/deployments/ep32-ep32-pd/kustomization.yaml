@@ -1,6 +1,8 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-# Kimi-K3: 2 prefill replicas (DEP16 each, 2 nodes) + 2 decode nodes (DEP16, wide) -> 6 nodes / 48 GPUs.
+# EP32/EP32 PD topology: 1 prefill worker-group of size 4 (4 nodes x
+# TP1/DP8-local = DP32/EP32) + 1 decode worker-group of size 4 (same) ->
+# 8 nodes / 64 GPUs total.
 resources:
   - ../../providers/coreweave
 patches:
@@ -10,10 +12,10 @@ patches:
     patch: |-
       - op: replace
         path: /spec/replicas
-        value: 2
+        value: 1
       - op: replace
         path: /spec/leaderWorkerTemplate/size
-        value: 2
+        value: 4
   - target:
       kind: LeaderWorkerSet
       name: ".*-decode"
@@ -23,4 +25,4 @@ patches:
         value: 1
       - op: replace
         path: /spec/leaderWorkerTemplate/size
-        value: 2
+        value: 4

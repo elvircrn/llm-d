@@ -43,6 +43,13 @@ spec:
             hostPath:
               path: /mnt/local/jit-cache
               type: DirectoryOrCreate
+          # Shared RWX (shared-vast) build cache -- node-independent, so a pod that
+          # reschedules to another node still finds the cached wheel instead of
+          # recompiling. Same PVC (and cache keys) as agg-tp8-ep4/serve_correct.yaml
+          # and base/decode.yaml, so a wheel built by any of them is reused by all.
+          - name: build-cache
+            persistentVolumeClaim:
+              claimName: kimi-k3-build-cache
           - name: sys
             hostPath:
               path: /sys
@@ -55,14 +62,23 @@ spec:
             hostPath:
               path: /mnt/local/kv-cache
               type: DirectoryOrCreate
+          # Shared vLLM/Humming build script -- see base/humming-build.sh.
+          - name: humming-build
+            configMap:
+              name: humming-build
+              defaultMode: 0555
         containers:
           - name: vllm
+            # PINNED by digest, NOT :nightly -- see agg-tp8-ep4/serve_correct.yaml
+            # for why (shared from-source wheel requires byte-identical torch/ABI
+            # across every pod in both the prefill and decode LWSes).
             image: vllm/vllm-openai:nightly
             securityContext:
               capabilities:
                 add:
                   - IPC_LOCK
                   - SYS_RAWIO
+                  - SYS_ADMIN  # required for `ncu` (Nsight Compute) to access GPU perf counters
               runAsGroup: 0
               runAsUser: 0
             imagePullPolicy: Always
@@ -73,18 +89,7 @@ spec:
               - |-
                 find /dev/shm -type f -delete
 
-                # Cherry-pick vllm PR 50511: MoE padding-row fix for DeepEP v2
-                VLLM_SITE=$(python3 -c "import vllm, pathlib; print(pathlib.Path(vllm.__file__).parent)")
-                PR_SHA=8b3f9dd33ee4f65c0c0b16b4527ebf5fb768ecd1
-                for f in \
-                  model_executor/layers/fused_moe/experts/triton_moe.py \
-                  model_executor/layers/fused_moe/moe_fused_mul_sum.py \
-                  model_executor/layers/fused_moe/prepare_finalize/deepep_v2.py \
-                  model_executor/layers/fused_moe/utils.py; do
-                  curl -sL "https://raw.githubusercontent.com/vllm-project/vllm/${PR_SHA}/vllm/${f}" \
-                    -o "${VLLM_SITE}/${f}"
-                done
-                echo "Applied PR 50511 (${PR_SHA:0:8})"
+                # source /opt/build-scripts/humming-build.sh
 
                 GPU_MEM_UTIL=${PREFILL_GPU_MEM_UTIL:-0.935}
 
@@ -134,8 +139,7 @@ spec:
                   --gpu-memory-utilization $GPU_MEM_UTIL \
                   --max-model-len ${MAX_MODEL_LEN:-auto} \
                   --disable-access-log-for-endpoints=/health,/metrics \
-                  --data-parallel-multi-port-external-lb \
-                  --data-parallel-supervisor-port=8208 \
+                  --data-parallel-external-lb \
                   --enable-expert-parallel \
                   --tensor-parallel-size $TP_SIZE \
                   --data-parallel-size $((LWS_GROUP_SIZE * DP_SIZE_LOCAL)) \
@@ -143,13 +147,22 @@ spec:
                   --data-parallel-address ${LWS_LEADER_ADDRESS} \
                   --data-parallel-rpc-port 5555 \
                   --max-num-batched-tokens 2048 \
-                  --data-parallel-start-rank $START_RANK \
+                  --max-num-seqs 256 \
+                  --data-parallel-rank $START_RANK \
                   --kv_transfer_config "$KV_TRANSFER_CONFIG" \
                   --all2all-backend deepep_v2 \
+                  --enforce-eager \
                   --language-model-only \
-                  --kv-cache-dtype fp8 \
-                  --block-size 256
+                  --attention-backend FLASHMLA \
+                  --moe-backend humming \
+                  --disable-custom-all-reduce \
+                  --no-enable-flashinfer-autotune \
+                  --enable-auto-tool-choice \
+                  --tool-call-parser kimi_k3 \
+                  --reasoning-parser kimi_k3
             env:
+              - name: VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS
+                value: "18000000"
               - name: HF_TOKEN
                 valueFrom:
                   secretKeyRef:
@@ -167,17 +180,35 @@ spec:
                 value: "0"
               - name: VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS
                 value: "1"
+              - name: VLLM_HUMMING_WIDEN_MOE_WARP_N
+                value: "1"
+              - name: VLLM_DEEPEP_DISABLE_FUSED_MOE_ALIGN
+                value: "1"
+              # Required at TP8: the 3-read Mamba conv-state transfer path
+              # asserts on this layout (AssertionError otherwise).
+              - name: VLLM_SSM_CONV_STATE_LAYOUT
+                value: "DS"
+              # Enables the Humming MXFP4-weight + block-FP8 (group-128) activation
+              # MoE path (vLLM PR 51332) -- see agg-tp8-ep4/serve_correct.yaml.
+              - name: VLLM_HUMMING_CAP_MOE_TUNING_K_BLOCK
+                value: "1"
+              - name: VLLM_COMPUTE_NANS_IN_LOGITS
+                value: "0"
+              - name: VLLM_MAX_STOP_STRINGS
+                value: "4"
+              - name: NCCL_DMABUF_ENABLE
+                value: "0"
               - name: VLLM_RANDOMIZE_DP_DUMMY_INPUTS
                 value: "1"
               - name: DP_SIZE_LOCAL
-                value: "8"
-              - name: TP_SIZE
                 value: "1"
+              - name: TP_SIZE
+                value: "8"
+              - name: VLLM_HUMMING_INPUT_QUANT_CONFIG
+                value: '{"dtype":"float8e4m3","group_size":128}'
               - name: TRITON_LIBCUDA_PATH
                 value: /usr/lib64
               - name: VLLM_SKIP_P2P_CHECK
-                value: "1"
-              - name: VLLM_USE_DEEP_GEMM
                 value: "1"
               - name: NVIDIA_GDRCOPY
                 value: enabled
@@ -213,37 +244,13 @@ spec:
               - containerPort: 8000
                 name: dp0
                 protocol: TCP
-              - containerPort: 8001
-                name: dp1
-                protocol: TCP
-              - containerPort: 8002
-                name: dp2
-                protocol: TCP
-              - containerPort: 8003
-                name: dp3
-                protocol: TCP
-              - containerPort: 8004
-                name: dp4
-                protocol: TCP
-              - containerPort: 8005
-                name: dp5
-                protocol: TCP
-              - containerPort: 8006
-                name: dp6
-                protocol: TCP
-              - containerPort: 8007
-                name: dp7
-                protocol: TCP
-              - containerPort: 8208
-                name: supervisor
-                protocol: TCP
               - containerPort: 5600
                 name: nixl
                 protocol: TCP
             startupProbe:
               httpGet:
                 path: /health
-                port: supervisor
+                port: dp0
               initialDelaySeconds: 0
               periodSeconds: 1
               timeoutSeconds: 5
@@ -251,14 +258,14 @@ spec:
             livenessProbe:
               httpGet:
                 path: /health
-                port: supervisor
+                port: dp0
               periodSeconds: 30
               timeoutSeconds: 5
               failureThreshold: 3
             readinessProbe:
               httpGet:
-                path: /readyz
-                port: supervisor
+                path: /health
+                port: dp0
               periodSeconds: 10
               timeoutSeconds: 5
               failureThreshold: 3
@@ -278,10 +285,14 @@ spec:
                 mountPath: /dev/shm
               - name: jit-cache
                 mountPath: /var/cache/vllm
+              - name: build-cache
+                mountPath: /shared/vllm-build
               - name: hf-cache
                 mountPath: /mnt/hf-cache
               - name: nvme-cache
                 mountPath: /mnt/nvme-cache
+              - name: humming-build
+                mountPath: /opt/build-scripts
           - name: node-exporter
             image: quay.io/prometheus/node-exporter:v1.9.0
             imagePullPolicy: IfNotPresent
