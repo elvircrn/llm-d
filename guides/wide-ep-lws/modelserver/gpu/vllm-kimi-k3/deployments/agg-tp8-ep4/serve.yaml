@@ -45,6 +45,12 @@ spec:
             hostPath:
               path: /mnt/local/jit-cache
               type: DirectoryOrCreate
+          # Shared RWX (shared-vast) build cache -- node-independent, so a pod that
+          # reschedules to another node still finds the cached wheel instead of
+          # recompiling. Holds only the published wheels + build logs.
+          - name: build-cache
+            persistentVolumeClaim:
+              claimName: kimi-k3-build-cache
           - name: profile-traces
             hostPath:
               path: /mnt/local/vllm-profile
@@ -65,6 +71,7 @@ spec:
                 add:
                   - IPC_LOCK
                   - SYS_RAWIO
+                  # - SYS_ADMIN  # required for `ncu` (Nsight Compute) to access GPU perf counters
               runAsGroup: 0
               runAsUser: 0
             imagePullPolicy: Always
@@ -73,157 +80,6 @@ spec:
               - -c
             args:
               - |-
-                find /dev/shm -type f -delete
-
-                # Integrated vLLM changes live on elvircrn/vllm @ kimi-k3-situ-integrated:
-                #   base 821717118fc2 (the commit this image was built from)
-                #   + PR 50511  (DeepEP v2 contiguous-layout padding-row fix)
-                #   + situ-padding-fix (SiTU valid_rows early-exit for decode)
-                # The 5-arg situ_and_mul CUDA op is compiled standalone into a separate
-                # _situ_fix namespace (.so); the base _C.so only ships the 4-arg version, so
-                # we do NOT rebuild the whole project.
-                VLLM_SITE=$(python3 -c "import vllm, pathlib; print(pathlib.Path(vllm.__file__).parent)")
-                BRANCH_SHA=1252c452f6631e40faac0608d0ce464b2b777fb6
-                CACHE=/var/cache/vllm/situ_fix
-                SITU_SO="${CACHE}/_situ_fix.so"
-
-                PY_FILES="model_executor/layers/fused_moe/activation.py \
-                  model_executor/layers/fused_moe/experts/fused_humming_moe.py \
-                  model_executor/layers/fused_moe/modular_kernel.py \
-                  model_executor/layers/fused_moe/experts/triton_moe.py \
-                  model_executor/layers/fused_moe/moe_fused_mul_sum.py \
-                  model_executor/layers/fused_moe/utils.py \
-                  model_executor/layers/fused_moe/prepare_finalize/deepep_v2.py"
-
-                if [ -f "$SITU_SO" ] && [ -f "${CACHE}/py/model_executor/layers/fused_moe/activation.py" ]; then
-                  for f in $PY_FILES; do
-                    cp "${CACHE}/py/${f}" "${VLLM_SITE}/${f}"
-                  done
-                  echo "Applied integrated changes (cached)"
-                else
-                  apt-get update -qq && apt-get install -y -qq git > /dev/null 2>&1
-                  rm -rf /tmp/vllm-situ
-                  git clone --depth=1 --filter=blob:none --sparse \
-                    --branch kimi-k3-situ-integrated \
-                    https://github.com/elvircrn/vllm.git /tmp/vllm-situ 2>/dev/null
-                  cd /tmp/vllm-situ
-                  git sparse-checkout set --no-cone \
-                    csrc/libtorch_stable csrc/cuda_compat.h \
-                    vllm/model_executor/layers/fused_moe
-                  echo "Cloned integrated branch at $(git rev-parse HEAD) (expected ${BRANCH_SHA})"
-                  cd /
-
-                  cat > /tmp/vllm-situ/situ_fix_binding.cpp << 'CPPEOF'
-                #include <torch/csrc/stable/library.h>
-                #include <torch/csrc/stable/tensor.h>
-                #include <optional>
-                void situ_and_mul(torch::stable::Tensor& out, torch::stable::Tensor& input,
-                                  double beta, double linear_beta,
-                                  std::optional<torch::stable::Tensor> valid_rows);
-                STABLE_TORCH_LIBRARY_FRAGMENT(_situ_fix, ops) {
-                  ops.def(
-                      "situ_and_mul(Tensor! out, Tensor input, float beta=1.0, float "
-                      "linear_beta=-1.0, Tensor? valid_rows=None) -> ()");
-                }
-                STABLE_TORCH_LIBRARY_IMPL(_situ_fix, CUDA, ops) {
-                  ops.impl("situ_and_mul", TORCH_BOX(&situ_and_mul));
-                }
-                CPPEOF
-
-                  python3 << 'PYEOF'
-                import glob, os, shutil
-                import torch.utils.cpp_extension as ext
-
-                src = '/tmp/vllm-situ/csrc/libtorch_stable'
-                build_dir = '/var/cache/vllm/situ_fix_build'
-                os.makedirs(build_dir, exist_ok=True)
-                print("Compiling _situ_fix.so (activation_kernels.cu + binding, sm_90)...")
-                ext.load(
-                    name='_situ_fix',
-                    sources=[f'{src}/activation_kernels.cu', '/tmp/vllm-situ/situ_fix_binding.cpp'],
-                    build_directory=build_dir,
-                    extra_include_paths=['/tmp/vllm-situ/csrc/libtorch_stable', '/tmp/vllm-situ/csrc'],
-                    extra_cflags=['-O2', '-std=c++17', '-DUSE_CUDA'],
-                    extra_cuda_cflags=['-O2', '--expt-relaxed-constexpr', '-std=c++17',
-                                       '-DUSE_CUDA', '-gencode=arch=compute_90,code=sm_90'],
-                    with_cuda=True,
-                    is_python_module=False,
-                    verbose=False,
-                )
-                built = glob.glob(os.path.join(build_dir, '_situ_fix*.so'))[0]
-                os.makedirs('/var/cache/vllm/situ_fix', exist_ok=True)
-                shutil.copy2(built, '/var/cache/vllm/situ_fix/_situ_fix.so')
-                print(f"Built and cached _situ_fix.so from {built}")
-                PYEOF
-
-                  python3 << 'PYEOF'
-                # Route SiTU to the standalone _situ_fix op (base _C.so has only the 4-arg version)
-                p = '/tmp/vllm-situ/vllm/model_executor/layers/fused_moe/activation.py'
-                s = open(p).read()
-                loader = (
-                    'if __import__("os").path.exists("/var/cache/vllm/situ_fix/_situ_fix.so"):\n'
-                    '    torch.ops.load_library("/var/cache/vllm/situ_fix/_situ_fix.so")\n'
-                )
-                out, done = [], False
-                for ln in s.splitlines(keepends=True):
-                    out.append(ln)
-                    if not done and ln.strip() == 'import torch':
-                        out.append(loader)
-                        done = True
-                s = ''.join(out).replace(
-                    'torch.ops._C.situ_and_mul(', 'torch.ops._situ_fix.situ_and_mul('
-                )
-                open(p, 'w').write(s)
-                print('Patched activation.py to route SiTU:', 'ok' if done else 'FAILED (no import torch)')
-                PYEOF
-
-                  for f in $PY_FILES; do
-                    mkdir -p "$(dirname "${CACHE}/py/${f}")"
-                    cp "/tmp/vllm-situ/vllm/${f}" "${CACHE}/py/${f}"
-                    cp "/tmp/vllm-situ/vllm/${f}" "${VLLM_SITE}/${f}"
-                  done
-                  rm -rf /tmp/vllm-situ
-                  echo "Applied integrated changes (compiled + cached)"
-                fi
-
-                # MLA dcp_world_size lazy-init workaround (fixes cp_world_size must be positive)
-                MLA_PY="${VLLM_SITE}/models/kimi_k3/nvidia/mla.py"
-                if [ -f "$MLA_PY" ] && ! grep -q "dcp_world_size" "$MLA_PY"; then
-                  sed -i 's/            latent_out, _lse = self.impl.forward_mqa(/            if getattr(self.impl, "dcp_world_size", 1) == -1:\n                try:\n                    from vllm.distributed.parallel_state import get_dcp_group\n                    self.impl.dcp_world_size = get_dcp_group().world_size\n                except (AssertionError, Exception):\n                    self.impl.dcp_world_size = 1\n            latent_out, _lse = self.impl.forward_mqa(/' "$MLA_PY"
-                  echo "Patched mla.py (dcp_world_size)"
-                fi
-
-                # PR 43680: uniform_random routing must sample WITHOUT replacement.
-                # torch.randint can pick the same expert twice per token, violating
-                # DeepEP v2's warp-dedup dispatch precondition. Use torch.topk on
-                # random scores, which yields distinct expert ids.
-                ROUTER_PY="${VLLM_SITE}/model_executor/layers/fused_moe/router/routing_simulator_router.py"
-                if [ -f "$ROUTER_PY" ] && ! grep -q "avoid duplicate topk_ids" "$ROUTER_PY"; then
-                  python3 - "$ROUTER_PY" << 'PYEOF'
-                import re, sys
-                p = sys.argv[1]
-                s = open(p).read()
-                pat = re.compile(
-                    r'# Uniform random sampling\n\s*return torch\.randint\(\n.*?device=device,\n\s*\)',
-                    re.DOTALL,
-                )
-                repl = (
-                    '# We do this to avoid duplicate topk_ids.\n'
-                    '            scores = torch.rand(num_tokens, num_experts, device=device)\n'
-                    '            _, topk_ids = torch.topk(scores, top_k, dim=-1)\n'
-                    '            return topk_ids.to(indices_type)'
-                )
-                s, n = pat.subn(repl, s)
-                open(p, 'w').write(s)
-                print('Patched routing_simulator_router.py (PR 43680):', 'ok' if n else 'FAILED (pattern not found)')
-                PYEOF
-                fi
-
-                if [ ! -f "$SITU_SO" ]; then
-                  echo "FATAL: ${SITU_SO} was not built; aborting so the pod restarts and retries."
-                  exit 1
-                fi
-
                 GPU_MEM_UTIL=${GPU_MEM_UTIL:-0.85}
 
                 START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
@@ -233,12 +89,10 @@ spec:
                   --port 8000 \
                   --trust-remote-code \
                   --gpu-memory-utilization $GPU_MEM_UTIL \
-                  --max-model-len ${MAX_MODEL_LEN:-8192} \
+                  --max-model-len auto \
                   --disable-access-log-for-endpoints=/health,/metrics \
                   --data-parallel-external-lb \
                   --enable-expert-parallel \
-                  --hf-overrides '{"num_hidden_layers": 8}' \
-                  --load-format dummy \
                   --tensor-parallel-size $TP_SIZE \
                   --data-parallel-size $((LWS_GROUP_SIZE * DP_SIZE_LOCAL)) \
                   --data-parallel-size-local $DP_SIZE_LOCAL \
@@ -251,10 +105,14 @@ spec:
                   --moe-backend humming \
                   --disable-custom-all-reduce \
                   --no-enable-flashinfer-autotune \
-                  --max-num-batched-tokens 128 \
+                  --max-num-batched-tokens ${MAX_NUM_BATCHED_TOKENS:-1024} \
                   --max-num-seqs 128 \
-                  --profiler-config '{"profiler": "torch", "torch_profiler_dir": "/tmp/vllm_profile", "capture_torch_profiler": true, "max_iterations": 4, "torch_profiler_with_stack": true, "torch_profiler_use_gzip": true, "torch_profiler_dump_cuda_time_total": true}'
+                  --enable-auto-tool-choice \
+                  --tool-call-parser kimi_k3 \
+                  --reasoning-parser kimi_k3
             env:
+              - name: VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS
+                value: "18000000"
               - name: HF_TOKEN
                 valueFrom:
                   secretKeyRef:
@@ -264,16 +122,18 @@ spec:
                 value: /mnt/hf-cache
               - name: GPU_MEM_UTIL
                 value: ""
+              # Multimodal: MMMU asks for 65536 output tokens; leave headroom for
+              # prompt + image tokens. Raise if you see "longer than max_model_len".
               - name: MAX_MODEL_LEN
-                value: "8192"
+                value: "131072"
               - name: VLLM_USE_V2_MODEL_RUNNER
+                value: "1"
+              - name: VLLM_HUMMING_WIDEN_MOE_WARP_N
+                value: "1"
+              - name: VLLM_DEEPEP_DISABLE_FUSED_MOE_ALIGN
                 value: "1"
               - name: VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS
                 value: "1"
-              - name: VLLM_RANDOMIZE_DP_DUMMY_INPUTS
-                value: "1"
-              - name: VLLM_MOE_ROUTING_SIMULATION_STRATEGY
-                value: "uniform_random"
               - name: DP_SIZE_LOCAL
                 value: "1"
               - name: TP_SIZE
@@ -282,14 +142,31 @@ spec:
                 value: /usr/lib64
               - name: VLLM_SKIP_P2P_CHECK
                 value: "1"
-              - name: VLLM_USE_DEEP_GEMM
+              # Enables the Humming MXFP4-weight + block-FP8 (group-128) activation
+              # MoE path from PR 51332. With this set, a_dtype becomes float8e4m3 so
+              # activations are quantized to block FP8 *before* the DeepEP v2
+              # all-to-all -- FP8 (+fp32 scales), not BF16, crosses the interconnect.
+              # Without it the path is inert (BF16 dispatch, W4A16 GEMM).
+              - name: VLLM_HUMMING_INPUT_QUANT_CONFIG
+                value: '{"dtype":"float8e4m3","group_size":128}'
+              # Cap the small-M MoE tuning K-block at 128 (default on). The BK=256
+              # tiles Humming selects for small valid_shape_m build a TMA
+              # CUtensorMap the driver rejects at cuLaunchKernelEx
+              # (CUDA_ERROR_MISALIGNED_ADDRESS) in profile_run -- not avoidable
+              # with --enforce-eager. Set to "0" to test whether a newer
+              # Humming/driver no longer needs the cap (would then let us drop it).
+              - name: VLLM_HUMMING_CAP_MOE_TUNING_K_BLOCK
                 value: "1"
               - name: NVIDIA_GDRCOPY
                 value: enabled
               - name: NVSHMEM_REMOTE_TRANSPORT
                 value: ibgda
+              - name: VLLM_MAX_STOP_STRINGS
+                value: "4"
               - name: NVSHMEM_IB_ENABLE_IBGDA
                 value: "true"
+              - name: VLLM_COMPUTE_NANS_IN_LOGITS
+                value: "0"
               - name: NVSHMEM_BOOTSTRAP_UID_SOCK_IFNAME
                 value: eth0
               - name: GLOO_SOCKET_IFNAME
@@ -298,8 +175,6 @@ spec:
                 value: eth0
               - name: VLLM_HTTP_TIMEOUT_KEEP_ALIVE
                 value: "120"
-              - name: ENABLE_PROFILING
-                value: "1"
               - name: VLLM_LOGGING_LEVEL
                 value: INFO
               - name: VLLM_NIXL_SIDE_CHANNEL_HOST
@@ -366,6 +241,8 @@ spec:
                 mountPath: /dev/shm
               - name: jit-cache
                 mountPath: /var/cache/vllm
+              - name: build-cache
+                mountPath: /shared/vllm-build
               - name: hf-cache
                 mountPath: /mnt/hf-cache
               - name: profile-traces
