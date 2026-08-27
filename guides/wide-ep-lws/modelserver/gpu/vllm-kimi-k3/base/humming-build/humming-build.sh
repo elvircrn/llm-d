@@ -12,10 +12,11 @@
 # agg-tp8-ep4/serve_correct.yaml.
 
 BUILD_REPO=https://github.com/elvircrn/vllm.git
-BUILD_BRANCH=humming-mxfp4-w4a8-block-fp8
+BUILD_BRANCH=kimi-k3-aliasing-fix
+# BUILD_BRANCH=codex/moe-masked-activation
 # Bump when the build RECIPE changes (flags, prunes) -- part of the
 # cache key, so a bump forces a rebuild for the same branch SHA.
-BUILD_VARIANT=release-nofastmath-zeropad3
+BUILD_VARIANT=release-nofastmath-zeropad6
 command -v git >/dev/null 2>&1 || { apt-get update -qq && apt-get install -y -qq git > /dev/null 2>&1; }
 BUILD_SHA=$(git ls-remote "$BUILD_REPO" "$BUILD_BRANCH" | cut -f1)
 if [ -z "$BUILD_SHA" ]; then
@@ -275,6 +276,3 @@ assert s2 != s, "HANDSHAKE_TIMEOUT_MINS patch did not match"
 p.write_text(s2)
 print("Patched HANDSHAKE_TIMEOUT_MINS -> 60")
 PYEOF
-
-
-uv pip install nixl

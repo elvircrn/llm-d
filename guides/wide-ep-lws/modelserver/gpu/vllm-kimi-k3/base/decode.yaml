@@ -106,7 +106,7 @@ spec:
               - |-
                 find /dev/shm -type f -delete
 
-                # source /opt/build-scripts/humming-build.sh
+                source /opt/build-scripts/humming-build.sh
 
                 export MAX_TOKENS=$(( ${MAX_TOKENS_PER_NODE:-128} * LWS_GROUP_SIZE ))
 

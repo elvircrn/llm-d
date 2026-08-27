@@ -89,7 +89,7 @@ spec:
               - |-
                 find /dev/shm -type f -delete
 
-                # source /opt/build-scripts/humming-build.sh
+                source /opt/build-scripts/humming-build.sh
 
                 GPU_MEM_UTIL=${PREFILL_GPU_MEM_UTIL:-0.935}
 

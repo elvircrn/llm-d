@@ -4,17 +4,15 @@ resources:
   - decode.yaml
   - prefill.yaml
   - serviceAccount.yaml
+  # Common Humming build step shared by decode.yaml, prefill.yaml, and
+  # agg-tp8-ep4/serve.yaml (mounted and `source`d from each role's args,
+  # instead of duplicating the script inline). Factored into its own nested
+  # kustomization -- see that directory -- so agg-tp8-ep4 can reference the
+  # same ConfigMap without pulling in decode.yaml/prefill.yaml too.
+  - humming-build
 # kv-cache-evictor.yaml moved to components/offloading-tiered: it only
 # cleans /mnt/local/kv-cache, used solely by that offloading mode, and its
 # pods were polluting the InferencePool's endpoint set (see that dir).
-# Common Humming build step shared by decode.yaml and prefill.yaml (mounted and
-# `source`d from each role's args, instead of duplicating the script inline).
-configMapGenerator:
-  - name: humming-build
-    files:
-      - humming-build.sh
-generatorOptions:
-  disableNameSuffixHash: true
 labels:
   - pairs:
       llm-d.ai/model: Kimi-K3

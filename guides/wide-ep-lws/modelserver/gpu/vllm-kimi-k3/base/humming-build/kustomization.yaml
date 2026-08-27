@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Factored out of base/kustomization.yaml so both the PD deployments (via
+# base/kustomization.yaml) and the agg-tp8-ep4 deployment (which doesn't use
+# decode.yaml/prefill.yaml at all) can reference this ConfigMap without
+# duplicating the generator or hitting kustomize's file-security policy
+# (a generator's `files:` source must live at-or-below its own kustomization
+# directory -- it can't reach into a sibling directory).
+configMapGenerator:
+  - name: humming-build
+    files:
+      - humming-build.sh
+generatorOptions:
+  disableNameSuffixHash: true

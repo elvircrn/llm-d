@@ -4,3 +4,11 @@ kind: Kustomization
 # No P/D disaggregation.
 resources:
   - serve.yaml
+  # serve.yaml mounts this ConfigMap (see base/humming-build/humming-build.sh)
+  # but this kustomization previously had no generator for it -- edits to
+  # that file never took effect on `kubectl apply -k` here; it only "worked"
+  # if the ConfigMap already existed from an unrelated PD deploy, with
+  # whatever stale content that left behind. A configMapGenerator can't
+  # reach into ../../base directly (kustomize's file-security policy), so
+  # reference the nested kustomization that owns it instead.
+  - ../../base/humming-build

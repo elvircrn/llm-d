@@ -63,6 +63,12 @@ spec:
             hostPath:
               path: /proc
               type: Directory
+          # Shared vLLM/Humming build script -- see base/humming-build.sh.
+          # Applied by deploy-kimi-k3.sh (this manifest has no kustomize).
+          - name: humming-build
+            configMap:
+              name: humming-build
+              defaultMode: 0555
         containers:
           - name: vllm
             image: vllm/vllm-openai:nightly
@@ -82,9 +88,22 @@ spec:
               - |-
                 GPU_MEM_UTIL=${GPU_MEM_UTIL:-0.85}
 
-                START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
+                source /opt/build-scripts/humming-build.sh
+  
+                # apt-get update -qq && apt-get install -y -qq git
+                # uv pip install --system git+https://github.com/inclusionAI/humming.git
+                uv pip install nixl
 
-                exec vllm serve \
+
+                START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
+                
+                PROFILER_ARGS=""
+                if [ "${ENABLE_PROFILING:-0}" = "1" ]; then
+                  mkdir -p /tmp/vllm_profile
+                  PROFILER_ARGS="--profiler-config {\"profiler\":\"torch\",\"torch_profiler_dir\":\"/tmp/vllm_profile\",\"torch_profiler_record_shapes\":true,\"torch_profiler_with_memory\":true,\"max_iterations\":3}"
+                fi
+
+                exec vllm serve $PROFILER_ARGS \
                   moonshotai/Kimi-K3 \
                   --port 8000 \
                   --trust-remote-code \
@@ -120,17 +139,19 @@ spec:
                     key: HF_TOKEN
               - name: HF_HOME
                 value: /mnt/hf-cache
+              # Raised to 0.95: with VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS=1
+              # the cudagraph-memory haircut makes 0.85 effective ~0.7455, which
+              # fails auto-fit ("not enough GPU memory to serve even a single
+              # token"). 0.95 restores the pre-profiling effective KV size.
               - name: GPU_MEM_UTIL
-                value: ""
+                value: "0.95"
               # Multimodal: MMMU asks for 65536 output tokens; leave headroom for
               # prompt + image tokens. Raise if you see "longer than max_model_len".
               - name: MAX_MODEL_LEN
                 value: "131072"
-              - name: VLLM_USE_V2_MODEL_RUNNER
-                value: "1"
               - name: VLLM_HUMMING_WIDEN_MOE_WARP_N
                 value: "1"
-              - name: VLLM_DEEPEP_DISABLE_FUSED_MOE_ALIGN
+              - name: VLLM_USE_FUSED_GLOBALIZE_ALIGN
                 value: "1"
               - name: VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS
                 value: "1"
@@ -175,6 +196,8 @@ spec:
                 value: eth0
               - name: VLLM_HTTP_TIMEOUT_KEEP_ALIVE
                 value: "120"
+              - name: ENABLE_PROFILING
+                value: "0"
               - name: VLLM_LOGGING_LEVEL
                 value: INFO
               - name: VLLM_NIXL_SIDE_CHANNEL_HOST
@@ -247,6 +270,8 @@ spec:
                 mountPath: /mnt/hf-cache
               - name: profile-traces
                 mountPath: /tmp/vllm_profile
+              - name: humming-build
+                mountPath: /opt/build-scripts
           - name: node-exporter
             image: quay.io/prometheus/node-exporter:v1.9.0
             imagePullPolicy: IfNotPresent
