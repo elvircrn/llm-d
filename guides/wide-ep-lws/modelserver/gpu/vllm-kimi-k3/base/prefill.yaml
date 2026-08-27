@@ -151,7 +151,6 @@ spec:
                   --data-parallel-rank $START_RANK \
                   --kv_transfer_config "$KV_TRANSFER_CONFIG" \
                   --all2all-backend deepep_v2 \
-                  --enforce-eager \
                   --language-model-only \
                   --attention-backend FLASHMLA \
                   --moe-backend humming \
