@@ -1,0 +1,11 @@
+# Qwen3-30B-A3B at DP=2 per role: layer after
+# qwen3-30b-a3b-overrides.values.yaml when running the
+# deployments/p1w1d1w1-dp2 variant, whose model servers expose only ranks
+# 0-1 (prefill API servers on 8000-8001, decode routing sidecar fronts
+# 8000-8001). Later files win in helm, so this trims the DP=4 file's
+# 8000-8003 list down to the ports that actually listen.
+router:
+  modelServers:
+    targetPorts:
+      - number: 8000
+      - number: 8001

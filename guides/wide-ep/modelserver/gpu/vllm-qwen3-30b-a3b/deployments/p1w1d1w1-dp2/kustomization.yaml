@@ -1,0 +1,47 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Qwen3-30B-A3B at DP=2 per role: prefill (DEP2) + decode (DEP2) co-located
+# -> 4 GPUs total instead of the DP=4 variant's 8. For clusters without a
+# full free node; pair with router/qwen3-30b-a3b-dp2.values.yaml so the
+# InferencePool only targets the two ranks that listen.
+resources:
+  - ../../providers/coreweave
+patches:
+  # Roles, containers, and env entries match by name via the
+  # DisaggregatedSet schema the base declares (same as the providers layer);
+  # the common role spec is written once and reused for decode.
+  - patch: |-
+      apiVersion: disaggregatedset.x-k8s.io/v1
+      kind: DisaggregatedSet
+      metadata:
+        name: wide-ep-vllm-qwen3-30b-a3b
+      spec:
+        roles:
+          - name: prefill
+            spec: &dp2-common
+              replicas: 1
+              leaderWorkerTemplate:
+                size: 1
+                workerTemplate:
+                  spec:
+                    containers:
+                      - name: vllm
+                        env:
+                          - name: DP_SIZE_LOCAL
+                            value: "2"
+                        resources:
+                          requests:
+                            nvidia.com/gpu: "2"
+                          limits:
+                            nvidia.com/gpu: "2"
+          - name: decode
+            spec: *dp2-common
+  - target:
+      group: disaggregatedset.x-k8s.io
+      kind: DisaggregatedSet
+    patch: |-
+      # The routing sidecar's args list has no merge key, so its DP flag is
+      # patched positionally: [--port, --vllm-port, --data-parallel-size, ...].
+      - op: replace
+        path: /spec/roles/1/spec/leaderWorkerTemplate/workerTemplate/spec/initContainers/0/args/2
+        value: --data-parallel-size=2
