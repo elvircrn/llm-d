@@ -1,0 +1,71 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# GPU-free build variant of p1w1d1w1: the campaign runner synthesizes its
+# wheel prebuild Job from this overlay's prefill worker, so a campaign that
+# lists this variant compiles the vLLM/DeepEP wheels on the CPU node pool
+# instead of holding H200s for the build. Compilation is arch-pinned
+# (TORCH_CUDA_ARCH_LIST) and validation is import-based, so the build needs
+# only the CUDA toolchain from the serving image and an amd64 CPU node.
+#
+# Serving is scaled to zero: this variant exists to build, not to serve.
+# Pair it with the GPU overlay in the same campaign (same build recipe and
+# shared cache PVC) so the serving case reuses the CPU-built wheel through
+# the runner's build-identity deduplication, then benches against the GPU
+# overlay. The runner's readiness wait must be told the overlay deploys no
+# serving Pods.
+resources:
+  - ../../providers/coreweave
+patches:
+  # Roles are ordered [prefill, decode] in the base DisaggregatedSet; the
+  # JSON patches replace whole fields so the coreweave provider's rdma/ib
+  # requests and the base's nvidia.com/gpu requests are dropped, not merged.
+  - target:
+      group: disaggregatedset.x-k8s.io
+      kind: DisaggregatedSet
+      name: wide-ep-vllm-qwen3-30b-a3b
+    patch: |-
+      - op: replace
+        path: /spec/roles/0/spec/replicas
+        value: 0
+      - op: replace
+        path: /spec/roles/0/spec/leaderWorkerTemplate/size
+        value: 1
+      - op: replace
+        path: /spec/roles/1/spec/replicas
+        value: 0
+      - op: replace
+        path: /spec/roles/1/spec/leaderWorkerTemplate/size
+        value: 1
+      # Prefill worker (index 0 is the vllm container; the prebuild Job
+      # mirrors this container's resources onto the CPU node pool).
+      - op: replace
+        path: /spec/roles/0/spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 64
+            memory: 256Gi
+            ephemeral-storage: 100Gi
+          limits:
+            cpu: 64
+            memory: 256Gi
+            ephemeral-storage: 100Gi
+      - op: add
+        path: /spec/roles/0/spec/leaderWorkerTemplate/workerTemplate/spec/nodeSelector
+        value:
+          compute.coreweave.com/node-pool: amd-turin-cpu-pool
+      # Decode worker, kept consistent with prefill.
+      - op: replace
+        path: /spec/roles/1/spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 64
+            memory: 256Gi
+            ephemeral-storage: 100Gi
+          limits:
+            cpu: 64
+            memory: 256Gi
+            ephemeral-storage: 100Gi
+      - op: add
+        path: /spec/roles/1/spec/leaderWorkerTemplate/workerTemplate/spec/nodeSelector
+        value:
+          compute.coreweave.com/node-pool: amd-turin-cpu-pool
