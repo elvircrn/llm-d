@@ -7,6 +7,11 @@ kind: Kustomization
 # (TORCH_CUDA_ARCH_LIST) and validation is import-based, so the build needs
 # only the CUDA toolchain from the serving image and an amd64 CPU node.
 #
+# CPU and memory match the GPU overlay's worker allocation so builds stay
+# comparable across node pools (the build scripts size MAX_JOBS from the
+# node's visible CPUs, which CFS quota does not cap), while dropping the
+# nvidia.com/gpu and rdma/ib requests frees the build from GPU nodes.
+#
 # Serving is scaled to zero: this variant exists to build, not to serve.
 # Pair it with the GPU overlay in the same campaign (same build recipe and
 # shared cache PVC) so the serving case reuses the CPU-built wheel through
@@ -42,12 +47,12 @@ patches:
         path: /spec/roles/0/spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources
         value:
           requests:
-            cpu: 64
-            memory: 256Gi
+            cpu: 32
+            memory: 512Gi
             ephemeral-storage: 100Gi
           limits:
-            cpu: 64
-            memory: 256Gi
+            cpu: 32
+            memory: 512Gi
             ephemeral-storage: 100Gi
       - op: add
         path: /spec/roles/0/spec/leaderWorkerTemplate/workerTemplate/spec/nodeSelector
@@ -58,12 +63,12 @@ patches:
         path: /spec/roles/1/spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/resources
         value:
           requests:
-            cpu: 64
-            memory: 256Gi
+            cpu: 32
+            memory: 512Gi
             ephemeral-storage: 100Gi
           limits:
-            cpu: 64
-            memory: 256Gi
+            cpu: 32
+            memory: 512Gi
             ephemeral-storage: 100Gi
       - op: add
         path: /spec/roles/1/spec/leaderWorkerTemplate/workerTemplate/spec/nodeSelector
