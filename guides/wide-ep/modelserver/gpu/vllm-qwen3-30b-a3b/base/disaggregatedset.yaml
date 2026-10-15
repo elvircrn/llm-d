@@ -119,7 +119,8 @@ spec:
                       --kv_transfer_config '{"kv_connector":"NixlConnector",
                                             "kv_role":"kv_both",
                                             "kv_load_failure_policy":"fail"}' \
-                      --all2all-backend deepep_high_throughput
+                      --all2all-backend deepep_high_throughput \
+                      ${VLLM_EXTRA_ARGS:-}
                 env:
                   - name: POD_IP
                     valueFrom:
@@ -413,7 +414,8 @@ spec:
                       --all2all-backend deepep_low_latency \
                       --reasoning-parser deepseek_r1 \
                       --tool-call-parser hermes \
-                      --enable-auto-tool-choice
+                      --enable-auto-tool-choice \
+                      ${VLLM_EXTRA_ARGS:-}
                 env:
                   - name: POD_IP
                     valueFrom:
