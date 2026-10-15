@@ -1,0 +1,32 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# The nan-fault-tolerance serving variant: identical to p1w1d1w1-dp2, with
+# the vLLM PR branch's --enable-nan-fault-tolerance appended to both roles'
+# serve commands. The base template ends its exec line with
+# ${VLLM_EXTRA_ARGS:-}, so feature flags under test are carried by overlay
+# variants instead of ad-hoc campaign CLI patches; a variant that targets one
+# role only patches that role's env without the shared anchor.
+resources:
+  - ../p1w1d1w1-dp2
+patches:
+  # Env entries merge by name via the DisaggregatedSet schema the base
+  # declares (same patch shape as the coreweave provider layer).
+  - patch: |-
+      apiVersion: disaggregatedset.x-k8s.io/v1
+      kind: DisaggregatedSet
+      metadata:
+        name: wide-ep-vllm-qwen3-30b-a3b
+      spec:
+        roles:
+          - name: prefill
+            spec: &nanft-common
+              leaderWorkerTemplate:
+                workerTemplate:
+                  spec:
+                    containers:
+                      - name: vllm
+                        env:
+                          - name: VLLM_EXTRA_ARGS
+                            value: "--enable-nan-fault-tolerance"
+          - name: decode
+            spec: *nanft-common
