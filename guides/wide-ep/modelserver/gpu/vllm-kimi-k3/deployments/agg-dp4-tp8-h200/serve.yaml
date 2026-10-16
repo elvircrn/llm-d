@@ -11,9 +11,9 @@ metadata:
     llm-d.ai/model: Kimi-K3
 spec:
   replicas: 1
-  # Four pods x eight H200 GPUs per pod = DP4 x TP8 = 32 GPUs.
+  # Two pods x eight H200 GPUs per pod = DP2 x TP8 = 16 GPUs.
   leaderWorkerTemplate:
-    size: 4
+    size: 2
     workerTemplate:
       metadata:
         labels:
