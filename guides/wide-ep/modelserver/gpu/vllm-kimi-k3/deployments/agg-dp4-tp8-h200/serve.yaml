@@ -190,6 +190,11 @@ spec:
                 value: "1"
               - name: VLLM_LOGGING_LEVEL
                 value: INFO
+              # The benchmark harness POSTs /reset_prefix_cache between
+              # concurrency runs; vLLM registers that endpoint only in
+              # server dev mode.
+              - name: VLLM_SERVER_DEV_MODE
+                value: "1"
               - name: VLLM_NIXL_SIDE_CHANNEL_HOST
                 valueFrom:
                   fieldRef:
