@@ -77,8 +77,7 @@ spec:
               - |-
                 GPU_MEM_UTIL=${GPU_MEM_UTIL:-0.85}
 
-                uv pip install --system --no-deps 'humming-kernels==0.1.13'
-                uv pip install nixl
+                uv pip install --system nixl
 
 
                 START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
