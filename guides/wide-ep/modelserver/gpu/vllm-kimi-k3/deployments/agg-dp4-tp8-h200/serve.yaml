@@ -92,7 +92,7 @@ spec:
                 echo "Initialized build..."
 
                 exec vllm serve $PROFILER_ARGS \
-                  moonshotai/Kimi-K3 \
+                  mgoin/Kimi-K3-pruned75 \
                   --port 8000 \
                   --trust-remote-code \
                   --gpu-memory-utilization $GPU_MEM_UTIL \
