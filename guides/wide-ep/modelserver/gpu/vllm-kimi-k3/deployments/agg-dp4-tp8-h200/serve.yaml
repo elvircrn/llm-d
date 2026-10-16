@@ -77,6 +77,7 @@ spec:
               - |-
                 GPU_MEM_UTIL=${GPU_MEM_UTIL:-0.85}
 
+                apt-get update -qq && apt-get install -y -qq infiniband-diags
                 uv pip install --system nixl
 
 
@@ -209,6 +210,10 @@ spec:
                 value: "ibp"
               - name: NVSHMEM_HCA_PREFIX
                 value: "ibp"
+              # deep_ep's ibstat probe defaults to mlx5_0, the 100Gb host
+              # NICs; the 400Gb rails NCCL and NVSHMEM use are named ibp*.
+              - name: EP_NIC_NAME
+                value: ibp0
             ports:
               - containerPort: 8000
                 name: dp0
