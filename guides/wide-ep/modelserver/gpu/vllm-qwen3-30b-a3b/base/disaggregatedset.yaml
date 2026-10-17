@@ -412,7 +412,7 @@ spec:
                                             "kv_role":"kv_both",
                                             "kv_load_failure_policy":"fail"}' \
                       --all2all-backend deepep_low_latency \
-                      --reasoning-parser deepseek_r1 \
+                      --reasoning-parser qwen3 \
                       --tool-call-parser hermes \
                       --enable-auto-tool-choice \
                       ${VLLM_EXTRA_ARGS:-}
