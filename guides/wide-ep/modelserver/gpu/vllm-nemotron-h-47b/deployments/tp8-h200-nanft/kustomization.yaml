@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# The nan-fault-tolerance serving variant: identical to tp8-h200, with the
+# vLLM PR branch's --enable-nan-fault-tolerance appended to the serve
+# command. The base template ends its exec line with ${VLLM_EXTRA_ARGS:-},
+# so feature flags under test are carried by overlay variants instead of
+# ad-hoc campaign CLI patches.
+resources:
+  - ../tp8-h200
+patches:
+  - target:
+      group: leaderworkerset.x-k8s.io
+      kind: LeaderWorkerSet
+    patch: |-
+      - op: add
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/-
+        value:
+          name: VLLM_EXTRA_ARGS
+          value: "--enable-nan-fault-tolerance"

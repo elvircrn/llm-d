@@ -1,0 +1,11 @@
+# Nemotron-H-47B-Reasoning-128K: one TP=8 LeaderWorkerSet, no prefill or
+# decode roles. Layer after recipes/router/base.values.yaml only —
+# wide-ep.values.yaml's plugin stack routes a P/D split this deployment
+# does not have.
+router:
+  modelServers:
+    targetPorts:
+      - number: 8000
+    matchLabels:
+      llm-d.ai/guide: "wide-ep"
+      llm-d.ai/model: "Nemotron-H-47B-Reasoning-128K"

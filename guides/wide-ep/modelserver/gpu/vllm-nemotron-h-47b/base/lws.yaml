@@ -1,0 +1,176 @@
+apiVersion: leaderworkerset.x-k8s.io/v1
+kind: LeaderWorkerSet
+metadata:
+  name: wide-ep-lws-nvidia-gpu-vllm-nemotron-h-47b-tp8
+  labels:
+    llm-d.ai/model: Nemotron-H-47B-Reasoning-128K
+    llm-d.ai/guide: wide-ep
+    llm-d.ai/accelerator-variant: gpu
+    llm-d.ai/accelerator-vendor: nvidia
+spec:
+  replicas: 1
+  leaderWorkerTemplate:
+    size: 1
+    workerTemplate:
+      metadata:
+        labels:
+          llm-d.ai/inference-serving: "true"
+          llm-d.ai/guide: "wide-ep"
+          llm-d.ai/accelerator-variant: "gpu"
+          llm-d.ai/accelerator-vendor: "nvidia"
+          llm-d.ai/model: Nemotron-H-47B-Reasoning-128K
+      spec:
+        serviceAccountName: nemotron-h-47b
+        volumes:
+          - name: dshm
+            emptyDir:
+              medium: Memory
+              sizeLimit: 256Gi
+          - name: hf-cache
+            hostPath:
+              path: /mnt/local/hf-cache
+              type: DirectoryOrCreate
+          - name: jit-cache
+            hostPath:
+              path: /mnt/local/jit-cache
+              type: DirectoryOrCreate
+          - name: sys
+            hostPath:
+              path: /sys
+              type: Directory
+          - name: proc
+            hostPath:
+              path: /proc
+              type: Directory
+        containers:
+          - name: vllm
+            image: REPLACE_MODEL_SERVER_IMAGE
+            securityContext:
+              capabilities:
+                add:
+                  - IPC_LOCK
+                  - SYS_RAWIO
+              runAsGroup: 0
+              runAsUser: 0
+            imagePullPolicy: Always
+            command:
+              - /bin/bash
+              - -c
+            args:
+              - |-
+                find /dev/shm -type f -delete
+
+                #################
+                # RUN vLLM Nemotron-H-47B worker
+                #################
+
+                GPU_MEM_UTIL=${GPU_MEM_UTIL:-0.9}
+
+                exec vllm serve nvidia/Nemotron-H-47B-Reasoning-128K \
+                  --port 8000 \
+                  --trust-remote-code \
+                  --gpu-memory-utilization $GPU_MEM_UTIL \
+                  --max-model-len ${MAX_MODEL_LEN:-auto} \
+                  --disable-access-log-for-endpoints=/health,/metrics \
+                  --tensor-parallel-size 8 \
+                  ${VLLM_EXTRA_ARGS:-}
+            env:
+              - name: HF_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: llm-d-hf-token
+                    key: HF_TOKEN
+              - name: HF_HOME
+                value: /mnt/hf-cache
+              - name: GPU_MEM_UTIL
+                value: "0.9"
+              - name: MAX_MODEL_LEN
+                value: "auto"
+              - name: VLLM_USE_V2_MODEL_RUNNER
+                value: "1"
+              - name: TRITON_LIBCUDA_PATH
+                value: /usr/lib64
+              - name: VLLM_SKIP_P2P_CHECK
+                value: "1"
+              - name: VLLM_HTTP_TIMEOUT_KEEP_ALIVE
+                value: "120"
+              - name: VLLM_LOGGING_LEVEL
+                value: INFO
+              - name: PYTORCH_CUDA_ALLOC_CONF
+                value: "expandable_segments:True"
+              - name: CUDA_CACHE_PATH
+                value: /var/cache/vllm/cuda
+              - name: CCACHE_DIR
+                value: /var/cache/vllm/ccache
+              - name: VLLM_CACHE_ROOT
+                value: /var/cache/vllm/vllm
+              - name: FLASHINFER_WORKSPACE_BASE
+                value: /var/cache/vllm/flashinfer
+            ports:
+              - containerPort: 8000
+                name: http
+                protocol: TCP
+            startupProbe:
+              httpGet:
+                path: /health
+                port: http
+              initialDelaySeconds: 0
+              periodSeconds: 1
+              timeoutSeconds: 5
+              failureThreshold: 2700
+            livenessProbe:
+              httpGet:
+                path: /health
+                port: http
+              periodSeconds: 30
+              timeoutSeconds: 5
+              failureThreshold: 3
+            readinessProbe:
+              httpGet:
+                path: /health
+                port: http
+              periodSeconds: 10
+              timeoutSeconds: 5
+              failureThreshold: 3
+            resources:
+              limits:
+                cpu: 64
+                ephemeral-storage: 1Ti
+                memory: 1500Gi
+                nvidia.com/gpu: "8"
+              requests:
+                cpu: 64
+                ephemeral-storage: 1Ti
+                memory: 1500Gi
+                nvidia.com/gpu: "8"
+            volumeMounts:
+              - name: dshm
+                mountPath: /dev/shm
+              - name: jit-cache
+                mountPath: /var/cache/vllm
+              - name: hf-cache
+                mountPath: /mnt/hf-cache
+          - name: node-exporter
+            image: quay.io/prometheus/node-exporter:v1.9.0
+            imagePullPolicy: IfNotPresent
+            args:
+              - --collector.disable-defaults
+              - --collector.infiniband
+              - --collector.netstat
+              - "--collector.netstat.fields=(.*Retrans.*|.*Timeout.*|.*LossProbe.*|.*FastRetrans.*|.*SackRecovery.*|.*Estab.*|.*Segs.*|.*Drops.*|.*Overflow.*|.*MemoryPressure.*|.*AutoCork.*|.*DSACK.*|.*Reorder.*|.*OFO.*|.*DelayedACK.*)"
+              - --collector.pressure
+              - --collector.schedstat
+              - --collector.cpu
+              - --path.sysfs=/host/sys
+              - --path.procfs=/host/proc
+            ports:
+              - containerPort: 9100
+                name: node-metrics
+                protocol: TCP
+            volumeMounts:
+              - name: sys
+                mountPath: /host/sys
+                readOnly: true
+              - name: proc
+                mountPath: /host/proc
+                readOnly: true
