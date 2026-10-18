@@ -5,6 +5,7 @@ kind: Kustomization
 resources:
   - disaggregatedset.yaml
   - serviceAccount.yaml
+  - podmonitor.yaml
   - kv-cache-evictor.yaml
 
 # The schema teaches kustomize the DisaggregatedSet merge keys, so strategic

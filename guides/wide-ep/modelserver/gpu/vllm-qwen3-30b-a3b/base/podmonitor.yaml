@@ -1,0 +1,47 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: vllm-qwen3-30b-a3b-prefill
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/inference-serving: "true"
+      llm-d.ai/model: Qwen3-30B-A3B
+      llm-d.ai/role: prefill
+  podMetricsEndpoints:
+    - port: dp0
+      path: /metrics
+      interval: 5s
+    - port: dp1
+      path: /metrics
+      interval: 5s
+    - port: dp2
+      path: /metrics
+      interval: 5s
+    - port: dp3
+      path: /metrics
+      interval: 5s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: vllm-qwen3-30b-a3b-decode
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/inference-serving: "true"
+      llm-d.ai/model: Qwen3-30B-A3B
+      llm-d.ai/role: decode
+  podMetricsEndpoints:
+    - port: vllm-rank0
+      path: /metrics
+      interval: 5s
+    - port: vllm-rank1
+      path: /metrics
+      interval: 5s
+    - port: vllm-rank2
+      path: /metrics
+      interval: 5s
+    - port: vllm-rank3
+      path: /metrics
+      interval: 5s
