@@ -1,8 +1,14 @@
 # Nemotron-H-47B-Reasoning-128K: one TP=8 LeaderWorkerSet, no prefill or
 # decode roles. Layer after recipes/router/base.values.yaml only —
 # wide-ep.values.yaml's plugin stack routes a P/D split this deployment
-# does not have.
+# does not have. The port-80 service mapping below mirrors the one
+# wide-ep.values.yaml adds, so a port-less base_url resolves here too.
 router:
+  extraServicePorts:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 8081
   modelServers:
     targetPorts:
       - number: 8000
