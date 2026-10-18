@@ -100,7 +100,7 @@ spec:
 
                     START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
 
-                    exec vllm serve Qwen/Qwen3-30B-A3B \
+                    exec vllm serve ${MODEL_REPO:-Qwen/Qwen3-30B-A3B} \
                       --port 8000 \
                       --trust-remote-code \
                       --gpu-memory-utilization $GPU_MEM_UTIL \
@@ -391,7 +391,7 @@ spec:
 
                     START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
 
-                    exec vllm serve Qwen/Qwen3-30B-A3B \
+                    exec vllm serve ${MODEL_REPO:-Qwen/Qwen3-30B-A3B} \
                       --port 8200 \
                       --trust-remote-code \
                       --gpu-memory-utilization $GPU_MEM_UTIL \
