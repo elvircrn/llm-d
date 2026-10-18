@@ -5,6 +5,7 @@ kind: Kustomization
 resources:
   - disaggregatedset.yaml
   - serviceAccount.yaml
+  - podmonitor.yaml
 
 components:
   - ../../../../../recipes/modelserver/components/images/gpu-vllm/release

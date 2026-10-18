@@ -1,0 +1,71 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: vllm-glm-5.2-prefill
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/inference-serving: "true"
+      llm-d.ai/model: GLM-5.2-FP8
+      llm-d.ai/role: prefill
+  podMetricsEndpoints:
+    - port: dp0
+      path: /metrics
+      interval: 5s
+    - port: dp1
+      path: /metrics
+      interval: 5s
+    - port: dp2
+      path: /metrics
+      interval: 5s
+    - port: dp3
+      path: /metrics
+      interval: 5s
+    - port: dp4
+      path: /metrics
+      interval: 5s
+    - port: dp5
+      path: /metrics
+      interval: 5s
+    - port: dp6
+      path: /metrics
+      interval: 5s
+    - port: dp7
+      path: /metrics
+      interval: 5s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: vllm-glm-5.2-decode
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/inference-serving: "true"
+      llm-d.ai/model: GLM-5.2-FP8
+      llm-d.ai/role: decode
+  podMetricsEndpoints:
+    - port: vllm-rank0
+      path: /metrics
+      interval: 5s
+    - port: vllm-rank1
+      path: /metrics
+      interval: 5s
+    - port: vllm-rank2
+      path: /metrics
+      interval: 5s
+    - port: vllm-rank3
+      path: /metrics
+      interval: 5s
+    - port: vllm-rank4
+      path: /metrics
+      interval: 5s
+    - port: vllm-rank5
+      path: /metrics
+      interval: 5s
+    - port: vllm-rank6
+      path: /metrics
+      interval: 5s
+    - port: vllm-rank7
+      path: /metrics
+      interval: 5s

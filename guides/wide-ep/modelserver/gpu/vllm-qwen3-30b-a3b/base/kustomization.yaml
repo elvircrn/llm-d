@@ -5,6 +5,7 @@ kind: Kustomization
 resources:
   - disaggregatedset.yaml
   - serviceAccount.yaml
+  - podmonitor.yaml
 
 # The schema teaches kustomize the DisaggregatedSet merge keys, so strategic
 # merge patches anywhere in a build composing this base match roles,

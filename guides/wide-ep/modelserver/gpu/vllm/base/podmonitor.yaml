@@ -1,0 +1,73 @@
+# The decode routing proxy serves the same rank0-7 port names as the prefill
+# vLLM container; the role selectors keep each monitor on vLLM's own ports.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: vllm-deepseek-r1-0528-prefill
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/inference-serving: "true"
+      llm-d.ai/model: DeepSeek-R1-0528
+      llm-d.ai/role: prefill
+  podMetricsEndpoints:
+    - port: rank0
+      path: /metrics
+      interval: 5s
+    - port: rank1
+      path: /metrics
+      interval: 5s
+    - port: rank2
+      path: /metrics
+      interval: 5s
+    - port: rank3
+      path: /metrics
+      interval: 5s
+    - port: rank4
+      path: /metrics
+      interval: 5s
+    - port: rank5
+      path: /metrics
+      interval: 5s
+    - port: rank6
+      path: /metrics
+      interval: 5s
+    - port: rank7
+      path: /metrics
+      interval: 5s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: vllm-deepseek-r1-0528-decode
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/inference-serving: "true"
+      llm-d.ai/model: DeepSeek-R1-0528
+      llm-d.ai/role: decode
+  podMetricsEndpoints:
+    - port: vllm-rank0
+      path: /metrics
+      interval: 5s
+    - port: vllm-rank1
+      path: /metrics
+      interval: 5s
+    - port: vllm-rank2
+      path: /metrics
+      interval: 5s
+    - port: vllm-rank3
+      path: /metrics
+      interval: 5s
+    - port: vllm-rank4
+      path: /metrics
+      interval: 5s
+    - port: vllm-rank5
+      path: /metrics
+      interval: 5s
+    - port: vllm-rank6
+      path: /metrics
+      interval: 5s
+    - port: vllm-rank7
+      path: /metrics
+      interval: 5s
