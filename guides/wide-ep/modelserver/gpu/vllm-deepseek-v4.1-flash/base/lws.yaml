@@ -185,12 +185,12 @@ spec:
               failureThreshold: 3
             resources:
               limits:
-                cpu: 128
+                cpu: 120
                 ephemeral-storage: 1Ti
                 memory: 1800Gi
                 nvidia.com/gpu: "8"
               requests:
-                cpu: 128
+                cpu: 120
                 ephemeral-storage: 1Ti
                 memory: 1800Gi
                 nvidia.com/gpu: "8"
