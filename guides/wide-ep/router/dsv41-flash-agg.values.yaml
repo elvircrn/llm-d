@@ -1,8 +1,10 @@
 # DeepSeek-V4.1-Flash aggregated serving: layer after
 # guides/recipes/router/base.values.yaml. No prefill/decode roles exist, so
 # none of the wide-ep pd plugins apply; the profile is the default-load
-# shape (queue and prefix scorers) plus the active-request scorer, one
-# endpoint per DP rank on ports 8000-8001.
+# shape (queue, KV-cache-utilization and prefix scorers) plus the
+# active-request scorer, one endpoint per DP rank on ports 8000-8001.
+# The scorer's registered type is kv-cache-utilization-scorer (llm-d-router
+# pkg/epp/framework/plugins/scheduling/scorer/kvcacheutilization).
 router:
   epp:
     pluginsConfigFile: "dsv41-flash-config.yaml"
@@ -13,6 +15,7 @@ router:
         plugins:
         - type: prefix-cache-scorer
         - type: queue-scorer
+        - type: kv-cache-utilization-scorer
         - type: active-request-scorer
         schedulingProfiles:
         - name: default
@@ -20,6 +23,8 @@ router:
           - pluginRef: prefix-cache-scorer
             weight: 3
           - pluginRef: queue-scorer
+            weight: 2
+          - pluginRef: kv-cache-utilization-scorer
             weight: 2
           - pluginRef: active-request-scorer
             weight: 2
