@@ -1,0 +1,36 @@
+# DeepSeek-V4.1-Flash aggregated serving: layer after
+# guides/recipes/router/base.values.yaml. No prefill/decode roles exist, so
+# none of the wide-ep pd plugins apply; the profile is the chart's
+# default-load shape (queue, KV-utilization, prefix scorers) plus the
+# active-request scorer, one endpoint per DP rank on ports 8000-8001.
+router:
+  epp:
+    pluginsConfigFile: "dsv41-flash-config.yaml"
+    pluginsCustomConfig:
+      dsv41-flash-config.yaml: |
+        apiVersion: llm-d.ai/v1alpha1
+        kind: EndpointPickerConfig
+        plugins:
+        - type: prefix-cache-scorer
+        - type: queue-scorer
+        - type: kv-utilization-scorer
+        - type: active-request-scorer
+        schedulingProfiles:
+        - name: default
+          plugins:
+          - pluginRef: prefix-cache-scorer
+            weight: 3
+          - pluginRef: queue-scorer
+            weight: 2
+          - pluginRef: kv-utilization-scorer
+            weight: 2
+          - pluginRef: active-request-scorer
+            weight: 2
+
+  modelServers:
+    targetPorts:
+      - number: 8000
+      - number: 8001
+    matchLabels:
+      llm-d.ai/guide: "wide-ep"
+      llm-d.ai/model: "DeepSeek-V4.1-Flash"

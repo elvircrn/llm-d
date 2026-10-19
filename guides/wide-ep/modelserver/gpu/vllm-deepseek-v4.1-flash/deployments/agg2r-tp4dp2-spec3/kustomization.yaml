@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# agg2r-tp4dp2-spec3: the base shape itself — 2 pods of TP4 x DP2 + EP8,
+# DSpark 3 drafts. Variations (draft count, TP8, prefill-schedule-interval)
+# patch on top of this directory.
+resources:
+  - ../../base
