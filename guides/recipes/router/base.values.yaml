@@ -18,7 +18,11 @@ router:
     failureMode: "FailOpen"
 
   modelServers:
-    protocol: http # http, grpc
+    # Empty, not omitted: the chart's own default is http, and any non-empty
+    # value emits the InferencePool's appProtocol, which newer
+    # inference.networking.k8s.io/v1 CRDs reject as an unknown field. The
+    # EPP config still defaults backend protocol to http.
+    protocol: ""
 
   proxy:
     # Sidecar proxy type. Options: envoy (default) or agentgateway.
