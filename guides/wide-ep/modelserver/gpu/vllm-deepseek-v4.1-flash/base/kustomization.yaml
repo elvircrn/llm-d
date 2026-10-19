@@ -1,0 +1,17 @@
+# Aggregated LeaderWorkerSet base; requires the LWS CRD and controller.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - lws.yaml
+  - serviceAccount.yaml
+  - podmonitor.yaml
+
+components:
+  - ../../../../../recipes/modelserver/components/images/gpu-vllm/nightly
+
+labels:
+  - pairs:
+      llm-d.ai/model: DeepSeek-V4.1-Flash
+      llm-d.ai/guide: wide-ep
+      llm-d.ai/accelerator-variant: gpu
+      llm-d.ai/accelerator-vendor: nvidia
