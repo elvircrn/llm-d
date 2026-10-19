@@ -12,7 +12,7 @@ metadata:
     llm-d.ai/accelerator-variant: gpu
     llm-d.ai/accelerator-vendor: nvidia
 spec:
-  replicas: 2
+  replicas: 1
   leaderWorkerTemplate:
     size: 1
     workerTemplate:
