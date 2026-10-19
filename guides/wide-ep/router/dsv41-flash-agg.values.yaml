@@ -6,6 +6,15 @@
 # The scorer's registered type is kv-cache-utilization-scorer (llm-d-router
 # pkg/epp/framework/plugins/scheduling/scorer/kvcacheutilization).
 router:
+  # The chart's Service exposes only 9002/9090/8081; benchmark clients call
+  # http://<release>-epp.<ns>.svc.cluster.local/v1 on port 80, so map it to
+  # the Envoy sidecar (wide-ep.values.yaml does the same for the pd guides).
+  extraServicePorts:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 8081
+
   epp:
     pluginsConfigFile: "dsv41-flash-config.yaml"
     pluginsCustomConfig:
