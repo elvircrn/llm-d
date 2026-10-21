@@ -1,0 +1,82 @@
+# DeepSeek-V4.1-Flash disaggregated P/D serving: layer after
+# guides/recipes/router/base.values.yaml. Prefill always goes to a prefill
+# engine and decode to a decode engine (always-disagg-pd-decider); prefill
+# picks by strict prefix-cache affinity (maxTTFTPenaltyMs 0 turns the
+# TTFT-penalty load override off, so a cache-warm prefill engine is never
+# traded for a less loaded cold one) and then queued token load, decode
+# picks the least busy engine. One endpoint per DP rank on ports 8000-8007;
+# the prefill engines and the decode routing sidecar share that range.
+# Parameters are the P/D reference run's measured values
+# (pd1p1d-spec3-nightly-nohp-stick0-nothp).
+router:
+  # The chart's Service exposes only 9002/9090/8081; benchmark clients call
+  # http://<release>-epp.<ns>.svc.cluster.local/v1 on port 80, so map it to
+  # the Envoy sidecar (wide-ep.values.yaml does the same for the pd guides).
+  extraServicePorts:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 8081
+
+  epp:
+    # Single EPP replica: the inflight-load-producer's in-flight token
+    # accounting (which the token-load-scorer and affinity filter consume)
+    # is local to each EPP process, so multiple replicas would each see
+    # only a fraction of the per-endpoint load and incorrectly gate the
+    # affinity filter.
+    replicas: 1
+    pluginsConfigFile: "dsv41-flash-pd-config.yaml"
+    pluginsCustomConfig:
+      dsv41-flash-pd-config.yaml: |
+        apiVersion: llm-d.ai/v1alpha1
+        kind: EndpointPickerConfig
+        plugins:
+        - type: always-disagg-pd-decider
+        - type: disagg-profile-handler
+          parameters:
+            deciders:
+              prefill: always-disagg-pd-decider
+        - type: prefill-filter
+        - type: decode-filter
+        - type: approx-prefix-cache-producer
+          parameters:
+            # AgentX prompts reach ~142k tokens; the default window is 128k.
+            maxPrefixTokensToMatch: 262144
+        - type: inflight-load-producer
+        - type: prefix-cache-affinity-filter
+          parameters:
+            affinityThreshold: 0.5
+            # 0 = strict affinity: the TTFT-penalty load override is off.
+            maxTTFTPenaltyMs: 0
+            peakPrefillThroughput: 3000
+        - type: token-load-scorer
+        - type: active-request-scorer
+        - type: max-score-picker
+        schedulingProfiles:
+        - name: prefill
+          plugins:
+          - pluginRef: prefill-filter
+          - pluginRef: prefix-cache-affinity-filter
+          - pluginRef: token-load-scorer
+          - pluginRef: max-score-picker
+        - name: decode
+          plugins:
+          - pluginRef: decode-filter
+          - pluginRef: active-request-scorer
+          - pluginRef: max-score-picker
+
+  modelServers:
+    # targetPorts must list all 8 DP rank ports so the EPP routes requests
+    # to all ranks. Without this, only rank 0 receives traffic.
+    targetPorts:
+      - number: 8000
+      - number: 8001
+      - number: 8002
+      - number: 8003
+      - number: 8004
+      - number: 8005
+      - number: 8006
+      - number: 8007
+    matchLabels:
+      llm-d.ai/guide: "wide-ep"
+      llm-d.ai/model: "DeepSeek-V4.1-Flash"
