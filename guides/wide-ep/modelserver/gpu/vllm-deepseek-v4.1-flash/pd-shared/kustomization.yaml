@@ -1,0 +1,22 @@
+# Shared by the DisaggregatedSet base and the plain-LeaderWorkerSet
+# deployments of the pd shape: the serving ServiceAccount and the two
+# role PodMonitors. Kustomize only composes whole directories from other
+# kustomizations, so the workload manifests (which differ per packaging)
+# live beside their own kustomization and reference this one.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - serviceAccount.yaml
+  - podmonitor.yaml
+
+labels:
+  - pairs:
+      llm-d.ai/model: DeepSeek-V4.1-Flash
+      llm-d.ai/guide: wide-ep
+      llm-d.ai/accelerator-variant: gpu
+      llm-d.ai/accelerator-vendor: nvidia
+    fields:
+      - version: v1
+        kind: ServiceAccount
+        path: metadata/labels
+        create: true
