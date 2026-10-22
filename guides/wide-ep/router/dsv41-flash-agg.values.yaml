@@ -5,6 +5,10 @@
 # active-request scorer, one endpoint per DP rank on ports 8000-8001.
 # The scorer's registered type is kv-cache-utilization-scorer (llm-d-router
 # pkg/epp/framework/plugins/scheduling/scorer/kvcacheutilization).
+# metrics-data-source + core-metrics-extractor feed all four scorers; a
+# profile with the scorers but no data source scores every endpoint neutral
+# and routes blind (the chart's default-plugins.yaml pairs them for this
+# reason).
 router:
   # The chart's Service exposes only 9002/9090/8081; benchmark clients call
   # http://<release>-epp.<ns>.svc.cluster.local/v1 on port 80, so map it to
@@ -22,6 +26,11 @@ router:
         apiVersion: llm-d.ai/v1alpha1
         kind: EndpointPickerConfig
         plugins:
+        - type: metrics-data-source
+          parameters:
+            scheme: "http"
+            path: "/metrics"
+        - type: core-metrics-extractor
         - type: prefix-cache-scorer
         - type: queue-scorer
         - type: kv-cache-utilization-scorer
