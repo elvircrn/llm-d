@@ -9,7 +9,11 @@
 apiVersion: disaggregatedset.x-k8s.io/v1
 kind: DisaggregatedSet
 metadata:
-  name: wide-ep-dss-nvidia-gpu-vllm-dsv41-flash
+  # The DSC controller appends -<slice>-<revision>-<role> to this name and
+  # the StatefulSet controller then derives its controller-revision-hash pod
+  # label value from that name plus the hash, so the stem must stay short
+  # enough for the 63-byte label limit (the old 38-byte stem overflowed it).
+  name: wide-ep-dss-vllm-dsv41-flash
   labels:
     llm-d.ai/model: DeepSeek-V4.1-Flash
     llm-d.ai/guide: wide-ep
