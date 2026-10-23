@@ -1,0 +1,26 @@
+# Headless Service backing the StatefulSet's pod DNS; the router's
+# endpoint picker discovers the pods by label, not via this Service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: wide-ep-ss-nvidia-gpu-vllm-dsv41-flash
+  labels:
+    llm-d.ai/model: DeepSeek-V4.1-Flash
+    llm-d.ai/guide: wide-ep
+    llm-d.ai/accelerator-variant: gpu
+    llm-d.ai/accelerator-vendor: nvidia
+spec:
+  clusterIP: None
+  selector:
+    llm-d.ai/model: DeepSeek-V4.1-Flash
+    llm-d.ai/inference-serving: 'true'
+  ports:
+  - name: rank0
+    port: 8000
+    protocol: TCP
+  - name: rank1
+    port: 8001
+    protocol: TCP
+  - name: supervisor
+    port: 9256
+    protocol: TCP

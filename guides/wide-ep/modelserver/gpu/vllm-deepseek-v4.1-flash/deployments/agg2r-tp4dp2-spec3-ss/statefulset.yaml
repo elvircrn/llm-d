@@ -1,0 +1,207 @@
+# Aggregated serving of DeepSeek-V4.1-Flash as a plain StatefulSet:
+# the agg2r-tp4dp2-spec3 pod (TP4 x DP2 + EP8) on clusters without
+# the LeaderWorkerSet CRD. The pod template is the LWS base's
+# workerTemplate; keep the two in sync.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: wide-ep-ss-nvidia-gpu-vllm-dsv41-flash
+  labels:
+    llm-d.ai/model: DeepSeek-V4.1-Flash
+    llm-d.ai/guide: wide-ep
+    llm-d.ai/accelerator-variant: gpu
+    llm-d.ai/accelerator-vendor: nvidia
+spec:
+  replicas: 1
+  serviceName: wide-ep-ss-nvidia-gpu-vllm-dsv41-flash
+  selector:
+    matchLabels:
+      llm-d.ai/model: DeepSeek-V4.1-Flash
+      llm-d.ai/inference-serving: 'true'
+  template:
+    metadata:
+      labels:
+        llm-d.ai/inference-serving: 'true'
+        llm-d.ai/guide: wide-ep
+        llm-d.ai/accelerator-variant: gpu
+        llm-d.ai/accelerator-vendor: nvidia
+        llm-d.ai/model: DeepSeek-V4.1-Flash
+    spec:
+      serviceAccountName: deepseek-v4.1-flash
+      volumes:
+      - name: dshm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 1248Gi
+      - name: hf-cache
+        hostPath:
+          path: /mnt/local/hf-cache
+          type: DirectoryOrCreate
+      - name: jit-cache
+        hostPath:
+          path: /mnt/local/jit-cache
+          type: DirectoryOrCreate
+      - name: sys
+        hostPath:
+          path: /sys
+          type: Directory
+      - name: proc
+        hostPath:
+          path: /proc
+          type: Directory
+      containers:
+      - name: vllm
+        image: REPLACE_MODEL_SERVER_IMAGE
+        securityContext:
+          capabilities:
+            add:
+            - IPC_LOCK
+            - SYS_RAWIO
+          runAsGroup: 0
+          runAsUser: 0
+        imagePullPolicy: Always
+        command:
+        - /bin/bash
+        - -c
+        args:
+        - "find /dev/shm -type f -delete\n\nmkdir -p ${XDG_CACHE_HOME}/torch/kernels\n\
+          \nTP_SIZE=${TP_SIZE:-4}\nDP_SIZE_LOCAL=${DP_SIZE_LOCAL:-2}\nDSPEC_NUM_TOKENS=${DSPEC_NUM_TOKENS:-3}\n\
+          \n#################\n# RUN vLLM DeepSeek-V4.1-Flash worker\n#################\n\
+          \nexec vllm serve deepseek-ai/DeepSeek-V4.1-Flash \\\n  --revision 5254448103b6254fc646dacbca1cbbf20e9216c1\
+          \ \\\n  --tokenizer-revision 5254448103b6254fc646dacbca1cbbf20e9216c1 \\\
+          \n  --served-model-name deepseek-ai/DeepSeek-V4.1-Flash \\\n  --host 0.0.0.0\
+          \ \\\n  --port 8000 \\\n  --tensor-parallel-size $TP_SIZE \\\n  --data-parallel-size\
+          \ $DP_SIZE_LOCAL \\\n  --data-parallel-size-local $DP_SIZE_LOCAL \\\n  --data-parallel-address\
+          \ 127.0.0.1 \\\n  --data-parallel-rpc-port 5555 \\\n  --data-parallel-multi-port-external-lb\
+          \ \\\n  --data-parallel-supervisor-port 9256 \\\n  --enable-expert-parallel\
+          \ \\\n  --enable-ep-weight-filter \\\n  --tokenizer-mode deepseek_v41 \\\
+          \n  --reasoning-parser deepseek_v41 \\\n  --tool-call-parser deepseek_v41\
+          \ \\\n  --enable-auto-tool-choice \\\n  --language-model-only \\\n  --max-model-len\
+          \ 262144 \\\n  --max-num-batched-tokens 8192 \\\n  --gpu-memory-utilization\
+          \ 0.90 \\\n  --enable-prefix-caching \\\n  --enable-chunked-prefill \\\n\
+          \  --enable-prompt-tokens-details \\\n  --safetensors-load-strategy prefetch\
+          \ \\\n  --speculative-config \"{\\\"method\\\":\\\"dspark\\\",\\\"num_speculative_tokens\\\
+          \":$DSPEC_NUM_TOKENS,\\\"draft_sample_method\\\":\\\"probabilistic\\\",\\\
+          \"rejection_sample_method\\\":\\\"standard\\\",\\\"enable_adaptive_verification\\\
+          \":false}\" \\\n  --engram-config '{\"cpu_offload\":true,\"dp_shared_memory\"\
+          :true}' \\\n  --kv-transfer-config '{\"kv_connector\":\"OffloadingConnector\"\
+          ,\"kv_role\":\"kv_both\",\"kv_connector_extra_config\":{\"spec_name\":\"\
+          TieringOffloadingSpec\",\"cpu_bytes_to_use\":137438953472,\"blocks_per_chunk\"\
+          :4}}' \\\n  --disable-uvicorn-access-log \\\n  --disable-access-log-for-endpoints\
+          \ /health,/metrics,/v1/models \\\n  ${VLLM_EXTRA_ARGS:-}"
+        env:
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: llm-d-hf-token
+              key: HF_TOKEN
+        - name: HF_HOME
+          value: /mnt/hf-cache
+        - name: TP_SIZE
+          value: '4'
+        - name: DP_SIZE_LOCAL
+          value: '2'
+        - name: DSPEC_NUM_TOKENS
+          value: '3'
+        - name: VLLM_SERVER_DEV_MODE
+          value: '1'
+        - name: VLLM_NO_USAGE_STATS
+          value: '1'
+        - name: VLLM_ENGINE_READY_TIMEOUT_S
+          value: '3600'
+        - name: VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS
+          value: '1800'
+        - name: TQDM_DISABLE
+          value: '1'
+        - name: GLOO_SOCKET_IFNAME
+          value: eth0
+        - name: NCCL_SOCKET_IFNAME
+          value: eth0
+        - name: VLLM_CACHE_ROOT
+          value: /var/cache/vllm/vllm
+        - name: TRITON_CACHE_DIR
+          value: /var/cache/vllm/triton
+        - name: TORCHINDUCTOR_CACHE_DIR
+          value: /var/cache/vllm/inductor
+        - name: FLASHINFER_WORKSPACE_BASE
+          value: /var/cache/vllm/flashinfer
+        - name: TILELANG_CACHE_DIR
+          value: /var/cache/vllm/tilelang
+        - name: CUDA_CACHE_PATH
+          value: /var/cache/vllm/cuda
+        - name: XDG_CACHE_HOME
+          value: /var/cache/vllm/xdg
+        ports:
+        - containerPort: 8000
+          name: rank0
+          protocol: TCP
+        - containerPort: 8001
+          name: rank1
+          protocol: TCP
+        - containerPort: 9256
+          name: supervisor
+          protocol: TCP
+        startupProbe:
+          httpGet:
+            path: /health
+            port: supervisor
+          initialDelaySeconds: 0
+          periodSeconds: 5
+          timeoutSeconds: 5
+          failureThreshold: 1440
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: supervisor
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: supervisor
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        resources:
+          limits:
+            cpu: 64
+            ephemeral-storage: 1Ti
+            memory: 1800Gi
+            nvidia.com/gpu: '8'
+          requests:
+            cpu: 64
+            ephemeral-storage: 1Ti
+            memory: 1800Gi
+            nvidia.com/gpu: '8'
+        volumeMounts:
+        - name: dshm
+          mountPath: /dev/shm
+        - name: hf-cache
+          mountPath: /mnt/hf-cache
+        - name: jit-cache
+          mountPath: /var/cache/vllm
+      - name: node-exporter
+        image: quay.io/prometheus/node-exporter:v1.9.0
+        imagePullPolicy: IfNotPresent
+        args:
+        - --collector.disable-defaults
+        - --collector.infiniband
+        - --collector.netstat
+        - --collector.netstat.fields=(.*Retrans.*|.*Timeout.*|.*LossProbe.*|.*FastRetrans.*|.*SackRecovery.*|.*Estab.*|.*Segs.*|.*Drops.*|.*Overflow.*|.*MemoryPressure.*|.*AutoCork.*|.*DSACK.*|.*Reorder.*|.*OFO.*|.*DelayedACK.*)
+        - --collector.pressure
+        - --collector.schedstat
+        - --collector.cpu
+        - --path.sysfs=/host/sys
+        - --path.procfs=/host/proc
+        ports:
+        - containerPort: 9100
+          name: node-metrics
+          protocol: TCP
+        volumeMounts:
+        - name: sys
+          mountPath: /host/sys
+          readOnly: true
+        - name: proc
+          mountPath: /host/proc
+          readOnly: true
