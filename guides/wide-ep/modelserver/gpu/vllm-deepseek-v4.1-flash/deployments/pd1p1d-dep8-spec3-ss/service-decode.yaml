@@ -1,0 +1,47 @@
+# Headless Service backing the StatefulSet's pod DNS; the router's
+# endpoint picker discovers the pods by label, not via this Service.
+# The 8000-range ports are the routing sidecar's, which fronts the
+# decode engines on 8200 + rank.
+apiVersion: v1
+kind: Service
+metadata:
+  name: wide-ep-ss-vllm-dsv41-flash-decode
+  labels:
+    llm-d.ai/model: DeepSeek-V4.1-Flash
+    llm-d.ai/guide: wide-ep
+    llm-d.ai/accelerator-variant: gpu
+    llm-d.ai/accelerator-vendor: nvidia
+spec:
+  clusterIP: None
+  selector:
+    llm-d.ai/model: DeepSeek-V4.1-Flash
+    llm-d.ai/inference-serving: 'true'
+    llm-d.ai/role: decode
+  ports:
+  - name: rank0
+    port: 8000
+    protocol: TCP
+  - name: rank1
+    port: 8001
+    protocol: TCP
+  - name: rank2
+    port: 8002
+    protocol: TCP
+  - name: rank3
+    port: 8003
+    protocol: TCP
+  - name: rank4
+    port: 8004
+    protocol: TCP
+  - name: rank5
+    port: 8005
+    protocol: TCP
+  - name: rank6
+    port: 8006
+    protocol: TCP
+  - name: rank7
+    port: 8007
+    protocol: TCP
+  - name: supervisor
+    port: 9256
+    protocol: TCP
