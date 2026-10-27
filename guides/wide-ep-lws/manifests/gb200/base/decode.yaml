@@ -4,7 +4,7 @@ metadata:
   name: wide-ep-llm-d-decode
   labels:
     llm-d.ai/inferenceServing: "true"
-    llm-d.ai/model: DeepSeek-R1-0528
+    llm-d.ai/model: DeepSeek-R1
     llm-d.ai/role: decode
 spec:
   replicas: 1
@@ -14,7 +14,7 @@ spec:
       metadata:
         labels:
           llm-d.ai/inferenceServing: "true"
-          llm-d.ai/model: DeepSeek-R1-0528
+          llm-d.ai/model: DeepSeek-R1
           llm-d.ai/role: decode
       spec:
         serviceAccountName: deepseek-r1
@@ -41,7 +41,7 @@ spec:
               medium: Memory
               sizeLimit: 2Gi # 2Gi for NCCL 2.27 to be safe
         containers:
-          - name: vllm-worker
+          - name: vllm
             image: ghcr.io/llm-d/llm-d:v0.2.0
             securityContext:
               capabilities:
@@ -61,9 +61,9 @@ spec:
                 #################
                 START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
 
-                source /opt/vllm/bin/activate
+                if [ -f /opt/vllm/bin/activate ]; then source /opt/vllm/bin/activate; fi
                 exec vllm serve \
-                  deepseek-ai/DeepSeek-V3.1 \
+                  nvidia/DeepSeek-R1-NVFP4 \
                   --port 8200 \
                   --disable-uvicorn-access-log \
                   --enable-expert-parallel \
