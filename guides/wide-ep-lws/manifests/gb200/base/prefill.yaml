@@ -75,6 +75,10 @@ spec:
                 value: deepep_high_throughput
               - name: NVIDIA_GDRCOPY
                 value: enabled
+              # Override container default that disables VMM
+              # VMM is required for fabric memory / MNNVL cross-pod communication
+              - name: NVSHMEM_DISABLE_CUDA_VMM
+                value: "0"
               - name: NVSHMEM_DEBUG
                 value: INFO
               - name: NVSHMEM_REMOTE_TRANSPORT
