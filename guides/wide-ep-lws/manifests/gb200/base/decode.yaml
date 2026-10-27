@@ -18,6 +18,11 @@ spec:
           llm-d.ai/role: decode
       spec:
         serviceAccountName: deepseek-r1
+        # DeepEP low-latency MNNVL buffers allocate CU_MEM_HANDLE_TYPE_FABRIC
+        # memory; the driver refuses that without membership in a compute domain.
+        resourceClaims:
+          - name: compute-domain-channel
+            resourceClaimTemplateName: llm-d-dev-claim
         initContainers:
           - name: routing-proxy
             args:
@@ -141,6 +146,8 @@ spec:
                 path: /health
                 port: 8200
             resources:
+              claims:
+                - name: compute-domain-channel
               limits:
                 ephemeral-storage: 256Gi
                 memory: 512Gi
