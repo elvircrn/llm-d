@@ -1,10 +1,8 @@
 # DeepSeek-R1 NVFP4 disaggregated P/D serving on GB200 NVL72: layer after
 # guides/recipes/router/base.values.yaml. Prefill always goes to a prefill
 # engine and decode to a decode engine (always-disagg-pd-decider); prefill
-# picks by strict prefix-cache affinity (maxTTFTPenaltyMs 0 turns the
-# TTFT-penalty load override off, so a cache-warm prefill engine is never
-# traded for a less loaded cold one) and then queued token load, decode
-# picks the least busy engine. The gb200 model servers run
+# picks the engine with the least queued token load, decode the least busy
+# engine. The gb200 model servers run
 # --data-parallel-hybrid-lb, so every role serves all DP ranks behind one
 # port: prefill engines on 8000 and the decode routing sidecar on 8000.
 router:
@@ -19,10 +17,9 @@ router:
 
   epp:
     # Single EPP replica: the inflight-load-producer's in-flight token
-    # accounting (which the token-load-scorer and affinity filter consume)
-    # is local to each EPP process, so multiple replicas would each see
-    # only a fraction of the per-endpoint load and incorrectly gate the
-    # affinity filter.
+    # accounting (which the token-load-scorer consumes) is local to each
+    # EPP process, so multiple replicas would each see only a fraction of
+    # the per-endpoint load and skew the scores.
     replicas: 1
     pluginsConfigFile: "r1-nvfp4-pd-config.yaml"
     pluginsCustomConfig:
@@ -37,17 +34,7 @@ router:
               prefill: always-disagg-pd-decider
         - type: prefill-filter
         - type: decode-filter
-        - type: approx-prefix-cache-producer
-          parameters:
-            # R1's context window is 163840 tokens; the default window is 128k.
-            maxPrefixTokensToMatch: 163840
         - type: inflight-load-producer
-        - type: prefix-cache-affinity-filter
-          parameters:
-            affinityThreshold: 0.5
-            # 0 = strict affinity: the TTFT-penalty load override is off.
-            maxTTFTPenaltyMs: 0
-            peakPrefillThroughput: 3000
         - type: token-load-scorer
         - type: active-request-scorer
         - type: max-score-picker
@@ -55,7 +42,6 @@ router:
         - name: prefill
           plugins:
           - pluginRef: prefill-filter
-          - pluginRef: prefix-cache-affinity-filter
           - pluginRef: token-load-scorer
           - pluginRef: max-score-picker
         - name: decode
