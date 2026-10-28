@@ -87,6 +87,11 @@ spec:
                 value: deepep_high_throughput
               - name: NVIDIA_GDRCOPY
                 value: enabled
+              # Pods on this cluster get no /dev/infiniband; once CUDA is up,
+              # UCX's default rc_verbs probe kills ucp worker creation and
+              # NIXL dies with NIXL_ERR_BACKEND. Keep NIXL on the pod network.
+              - name: UCX_TLS
+                value: tcp,cuda_copy,sm
               # Override container default that disables VMM
               # VMM is required for fabric memory / MNNVL cross-pod communication
               - name: NVSHMEM_DISABLE_CUDA_VMM
