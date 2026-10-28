@@ -29,6 +29,9 @@ spec:
               - --port=8000
               - --vllm-port=8200
               - --kv-connector=nixlv2
+              # Prefill 5xx are transient conn races; retry before failing the
+              # client request.
+              - --prefill-max-retries=3
               - --zap-log-level=1
               - --secure-proxy=false
             image: ghcr.io/llm-d/llm-d-router-disagg-sidecar:v0.11.0
@@ -138,6 +141,11 @@ spec:
                 value: ibp
               - name: VLLM_LOGGING_LEVEL
                 value: INFO
+              # The sidecar proxies client traffic to this port over conns it
+              # pools for 90s; a shorter server keep-alive makes reused conns
+              # get RST mid-request and surface to clients as 502.
+              - name: VLLM_HTTP_TIMEOUT_KEEP_ALIVE
+                value: "300"
               - name: VLLM_NIXL_SIDE_CHANNEL_HOST
                 valueFrom:
                   fieldRef:

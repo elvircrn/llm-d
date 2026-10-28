@@ -112,6 +112,11 @@ spec:
                 value: ibp
               - name: VLLM_LOGGING_LEVEL
                 value: INFO
+              # The decode pod's disagg sidecar pools idle conns for 90s; a
+              # shorter server keep-alive makes reused conns get RST mid-request
+              # and surface to clients as 502.
+              - name: VLLM_HTTP_TIMEOUT_KEEP_ALIVE
+                value: "300"
               - name: VLLM_NIXL_SIDE_CHANNEL_HOST
                 valueFrom:
                   fieldRef:
