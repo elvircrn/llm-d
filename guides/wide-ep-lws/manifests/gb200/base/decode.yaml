@@ -141,6 +141,8 @@ spec:
                 value: ibp
               - name: VLLM_LOGGING_LEVEL
                 value: INFO
+              - name: VLLM_USE_V2_MODEL_RUNNER
+                value: "0"
               # The sidecar proxies client traffic to this port over conns it
               # pools for 90s; a shorter server keep-alive makes reused conns
               # get RST mid-request and surface to clients as 502.
