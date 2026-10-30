@@ -1,0 +1,197 @@
+# Prefill role of the DeepSeek-V4.1-Flash disaggregated P/D serving shape
+# for GB200 NVL72 trays: one pod per 4-GPU tray running TP1 x DP4 + EP4
+# behind --data-parallel-hybrid-lb, DSpark speculative decoding, and the
+# engram tables CPU-offloaded into a DP-shared /dev/shm segment. The MoE
+# all-to-all stays inside the pod's NVLink domain; prefill-to-decode KV
+# crosses pods through NixlConnector.
+apiVersion: leaderworkerset.x-k8s.io/v1
+kind: LeaderWorkerSet
+metadata:
+  name: wide-ep-dsv41-flash-prefill
+  labels:
+    llm-d.ai/inferenceServing: "true"
+    llm-d.ai/model: DeepSeek-V4.1-Flash
+    llm-d.ai/role: prefill
+spec:
+  replicas: 1
+  leaderWorkerTemplate:
+    size: 1
+    workerTemplate:
+      metadata:
+        labels:
+          llm-d.ai/inferenceServing: "true"
+          llm-d.ai/model: DeepSeek-V4.1-Flash
+          llm-d.ai/role: prefill
+      spec:
+        serviceAccountName: deepseek-v4.1-flash
+        volumes:
+          - name: dshm
+            emptyDir:
+              medium: Memory
+              # The DP-shared engram tables need ~189 GiB of /dev/shm
+              # (768M entries x 264 B); NCCL wants a few GiB on top.
+              sizeLimit: 256Gi
+        containers:
+          - name: vllm
+            image: docker.io/vllm/vllm-openai:nightly
+            securityContext:
+              capabilities:
+                add:
+                  - IPC_LOCK
+                  - SYS_RAWIO
+              runAsGroup: 0
+              runAsUser: 0
+            imagePullPolicy: Always
+            command:
+              - /bin/bash
+              - -c
+            args:
+              - |-
+                find /dev/shm -type f -delete
+
+                START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
+
+                if [ -f /opt/vllm/bin/activate ]; then source /opt/vllm/bin/activate; fi
+
+                #################
+                # RUN vLLM DeepSeek-V4.1-Flash prefill worker
+                #################
+
+                set -- deepseek-ai/DeepSeek-V4.1-Flash \
+                  --revision 5254448103b6254fc646dacbca1cbbf20e9216c1 \
+                  --tokenizer-revision 5254448103b6254fc646dacbca1cbbf20e9216c1 \
+                  --served-model-name deepseek-ai/DeepSeek-V4.1-Flash \
+                  --host 0.0.0.0 \
+                  --port 8000 \
+                  --tensor-parallel-size 1 \
+                  --data-parallel-hybrid-lb \
+                  --data-parallel-size $((LWS_GROUP_SIZE * DP_SIZE_LOCAL)) \
+                  --data-parallel-size-local $DP_SIZE_LOCAL \
+                  --data-parallel-address ${LWS_LEADER_ADDRESS} \
+                  --data-parallel-rpc-port 5555 \
+                  --data-parallel-start-rank $START_RANK \
+                  --enable-expert-parallel \
+                  --tokenizer-mode deepseek_v41 \
+                  --reasoning-parser deepseek_v41 \
+                  --tool-call-parser deepseek_v41 \
+                  --enable-auto-tool-choice \
+                  --language-model-only \
+                  --max-model-len 262144 \
+                  --max-num-batched-tokens 8192 \
+                  --gpu-memory-utilization 0.90 \
+                  --enable-prefix-caching \
+                  --enable-chunked-prefill \
+                  --enable-prompt-tokens-details \
+                  --safetensors-load-strategy prefetch \
+                  --speculative-config "{\"method\":\"dspark\",\"num_speculative_tokens\":$DSPEC_NUM_TOKENS,\"draft_sample_method\":\"probabilistic\",\"rejection_sample_method\":\"standard\",\"enable_adaptive_verification\":false}" \
+                  --engram-config '{"cpu_offload":true,"dp_shared_memory":true}' \
+                  --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_both","kv_connector_extra_config":{"kv_lease_duration":600}}' \
+                  --disable-uvicorn-access-log \
+                  --disable-access-log-for-endpoints /health,/metrics,/v1/models \
+                  ${VLLM_EXTRA_ARGS:-}
+
+                # Strict prefix-cache affinity requires THP off for the
+                # whole vLLM process tree; PR_SET_THP_DISABLE survives
+                # exec and fork, so every engine and worker inherits it.
+                exec python3 -c "import ctypes, os, sys; r = ctypes.CDLL(None, use_errno=True).prctl(41, 1, 0, 0, 0); print(\"THP disabled\" if r == 0 else \"WARNING: PR_SET_THP_DISABLE failed errno=%d\" % ctypes.get_errno(), file=sys.stderr, flush=True); os.execvp(\"vllm\", [\"vllm\", \"serve\"] + sys.argv[1:])" "$@"
+            env:
+              - name: HF_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: hf-secret
+                    key: HF_TOKEN
+              # The ~509 GB checkpoint cannot download into the pod's
+              # ephemeral storage; weights load from the lustre HF cache,
+              # the build-cache mount the campaign injects at this path.
+              - name: HF_HUB_CACHE
+                value: /shared/vllm-build
+              - name: HF_HUB_DISABLE_XET
+                value: "1"
+              - name: DP_SIZE_LOCAL
+                value: "4"
+              - name: DSPEC_NUM_TOKENS
+                value: "5"
+              # Enables POST /reset_prefix_cache, which the benchmark
+              # harness calls on every engine between concurrency levels.
+              - name: VLLM_SERVER_DEV_MODE
+                value: "1"
+              - name: VLLM_NO_USAGE_STATS
+                value: "1"
+              - name: VLLM_ENGINE_READY_TIMEOUT_S
+                value: "3600"
+              - name: VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS
+                value: "1800"
+              - name: TQDM_DISABLE
+                value: "1"
+              - name: TRITON_LIBCUDA_PATH
+                value: /usr/lib64
+              - name: VLLM_SKIP_P2P_CHECK
+                value: "1"
+              - name: VLLM_RANDOMIZE_DP_DUMMY_INPUTS
+                value: "1"
+              - name: VLLM_USE_DEEP_GEMM
+                value: "1"
+              - name: VLLM_DEEPEP_HIGH_THROUGHPUT_FORCE_INTRA_NODE
+                value: "1"
+              - name: NVIDIA_GDRCOPY
+                value: enabled
+              # Pods on this cluster get no /dev/infiniband; once CUDA is up,
+              # UCX's default rc_verbs probe kills ucp worker creation and
+              # NIXL dies with NIXL_ERR_BACKEND. Keep NIXL on the pod network.
+              - name: UCX_TLS
+                value: tcp,cuda_copy,sm
+              # Override container default that disables VMM
+              # VMM is required for fabric memory / MNNVL cross-pod communication
+              - name: NVSHMEM_DISABLE_CUDA_VMM
+                value: "0"
+              - name: NVSHMEM_DEBUG
+                value: INFO
+              - name: NVSHMEM_REMOTE_TRANSPORT
+                value: ibgda
+              - name: NVSHMEM_IB_ENABLE_IBGDA
+                value: "true"
+              - name: NVSHMEM_BOOTSTRAP_UID_SOCK_IFNAME
+                value: eth0
+              - name: GLOO_SOCKET_IFNAME
+                value: eth0
+              - name: NCCL_SOCKET_IFNAME
+                value: eth0
+              - name: NCCL_IB_HCA
+                value: ibp
+              # Keeps numpy from re-enabling huge pages the THP wrapper
+              # turned off.
+              - name: NUMPY_MADVISE_HUGEPAGE
+                value: "0"
+              - name: VLLM_LOGGING_LEVEL
+                value: INFO
+              # The decode pod's disagg sidecar pools idle conns for 90s; a
+              # shorter server keep-alive makes reused conns get RST mid-request
+              # and surface to clients as 502.
+              - name: VLLM_HTTP_TIMEOUT_KEEP_ALIVE
+                value: "300"
+              - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+                valueFrom:
+                  fieldRef:
+                    fieldPath: status.podIP
+            ports:
+              - containerPort: 8000
+                name: http
+                protocol: TCP
+            readinessProbe:
+              httpGet:
+                path: /health
+                port: 8000
+            resources:
+              limits:
+                cpu: 32
+                ephemeral-storage: 256Gi
+                memory: 512Gi
+                nvidia.com/gpu: "4"
+              requests:
+                cpu: 32
+                ephemeral-storage: 256Gi
+                memory: 512Gi
+                nvidia.com/gpu: "4"
+            volumeMounts:
+              - mountPath: /dev/shm
+                name: dshm

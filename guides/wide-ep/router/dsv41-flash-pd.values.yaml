@@ -1,0 +1,61 @@
+# DeepSeek-V4.1-Flash disaggregated P/D serving on GB200 NVL72: layer after
+# guides/recipes/router/base.values.yaml. Prefill always goes to a prefill
+# engine and decode to a decode engine (always-disagg-pd-decider); prefill
+# picks the engine with the least queued token load, decode the least busy
+# engine. The gb200 model servers run
+# --data-parallel-hybrid-lb, so every role serves all DP ranks behind one
+# port: prefill engines on 8000 and the decode routing sidecar on 8000.
+router:
+  # The chart's Service exposes only 9002/9090/8081; benchmark clients call
+  # http://<release>-epp.<ns>.svc.cluster.local/v1 on port 80, so map it to
+  # the Envoy sidecar (wide-ep.values.yaml does the same for the pd guides).
+  extraServicePorts:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 8081
+
+  epp:
+    # Single EPP replica: the inflight-load-producer's in-flight token
+    # accounting (which the token-load-scorer consumes) is local to each
+    # EPP process, so multiple replicas would each see only a fraction of
+    # the per-endpoint load and skew the scores.
+    replicas: 1
+    pluginsConfigFile: "dsv41-flash-pd-config.yaml"
+    pluginsCustomConfig:
+      dsv41-flash-pd-config.yaml: |
+        apiVersion: llm-d.ai/v1alpha1
+        kind: EndpointPickerConfig
+        plugins:
+        - type: always-disagg-pd-decider
+        - type: disagg-profile-handler
+          parameters:
+            deciders:
+              prefill: always-disagg-pd-decider
+        - type: prefill-filter
+        - type: decode-filter
+        - type: inflight-load-producer
+        - type: token-load-scorer
+        - type: active-request-scorer
+        - type: max-score-picker
+        schedulingProfiles:
+        - name: prefill
+          plugins:
+          - pluginRef: prefill-filter
+          - pluginRef: token-load-scorer
+          - pluginRef: max-score-picker
+        - name: decode
+          plugins:
+          - pluginRef: decode-filter
+          - pluginRef: active-request-scorer
+          - pluginRef: max-score-picker
+
+  modelServers:
+    # All DP ranks sit behind the engine's hybrid LB on a single port per
+    # pod: prefill's vllm serve --port 8000 and decode's routing sidecar
+    # --port 8000.
+    targetPorts:
+      - number: 8000
+    matchLabels:
+      llm-d.ai/inferenceServing: "true"
+      llm-d.ai/model: DeepSeek-V4.1-Flash

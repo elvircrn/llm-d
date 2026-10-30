@@ -1,0 +1,8 @@
+# pd1p2d: the gb200 base shape with two decode pods, for workloads whose
+# decode share needs twice the prefill share of the rack.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+patches:
+  - path: decode-replicas.yaml
