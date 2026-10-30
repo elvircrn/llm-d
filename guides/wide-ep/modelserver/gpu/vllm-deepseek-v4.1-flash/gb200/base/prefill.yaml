@@ -80,6 +80,7 @@ spec:
                   --data-parallel-rpc-port 5555 \
                   --data-parallel-start-rank $START_RANK \
                   --enable-expert-parallel \
+                  --kernel-config '{"moe_backend":"deep_gemm_mega_moe"}' \
                   --tokenizer-mode deepseek_v41 \
                   --reasoning-parser deepseek_v41 \
                   --tool-call-parser deepseek_v41 \
