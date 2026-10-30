@@ -131,7 +131,7 @@ spec:
               httpGet:
                 path: /health
                 port: 8000
-              timeoutSeconds: 10
+              timeoutSeconds: 30
             resources:
               limits:
                 ephemeral-storage: 256Gi

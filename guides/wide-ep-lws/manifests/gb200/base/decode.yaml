@@ -160,7 +160,7 @@ spec:
               httpGet:
                 path: /health
                 port: 8200
-              timeoutSeconds: 10
+              timeoutSeconds: 30
             resources:
               claims:
                 - name: compute-domain-channel
