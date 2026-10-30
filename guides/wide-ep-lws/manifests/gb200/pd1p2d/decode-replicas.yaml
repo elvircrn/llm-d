@@ -1,0 +1,6 @@
+apiVersion: leaderworkerset.x-k8s.io/v1
+kind: LeaderWorkerSet
+metadata:
+  name: wide-ep-llm-d-decode
+spec:
+  replicas: 2
