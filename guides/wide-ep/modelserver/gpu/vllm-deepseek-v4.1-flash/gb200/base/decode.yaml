@@ -115,7 +115,7 @@ spec:
                   --tool-call-parser deepseek_v41 \
                   --enable-auto-tool-choice \
                   --language-model-only \
-                  --max-model-len 262144 \
+                  --max-model-len auto \
                   --max-num-batched-tokens 8192 \
                   --gpu-memory-utilization 0.90 \
                   --enable-prefix-caching \
