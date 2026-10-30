@@ -108,6 +108,7 @@ spec:
                   --data-parallel-rpc-port 5555 \
                   --data-parallel-start-rank $START_RANK \
                   --enable-expert-parallel \
+                  --disable-ep-weight-filter \
                   --kernel-config '{"moe_backend":"deep_gemm_mega_moe"}' \
                   --tokenizer-mode deepseek_v41 \
                   --reasoning-parser deepseek_v41 \
@@ -123,6 +124,7 @@ spec:
                   --safetensors-load-strategy prefetch \
                   --speculative-config "{\"method\":\"dspark\",\"num_speculative_tokens\":$DSPEC_NUM_TOKENS,\"draft_sample_method\":\"probabilistic\",\"rejection_sample_method\":\"standard\",\"enable_adaptive_verification\":false}" \
                   --engram-config '{"cpu_offload":true,"dp_shared_memory":true}' \
+                  --kv-cache-dtype fp8 \
                   --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_both","kv_connector_extra_config":{"kv_lease_duration":600}}' \
                   --disable-uvicorn-access-log \
                   --disable-access-log-for-endpoints /health,/metrics,/v1/models \
