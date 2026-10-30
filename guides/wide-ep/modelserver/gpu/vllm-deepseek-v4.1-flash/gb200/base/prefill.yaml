@@ -53,6 +53,15 @@ spec:
 
                 if [ -f /opt/vllm/bin/activate ]; then source /opt/vllm/bin/activate; fi
 
+                # First boot JIT-compiles Triton, DeepGEMM, FlashInfer and
+                # inductor kernels; the caches persist on the build-cache PVC,
+                # per-pod prefixed so concurrent pods never share a dir.
+                export TRITON_CACHE_DIR="/shared/vllm-build/jit/$HOSTNAME/triton"
+                export DG_JIT_CACHE_DIR="/shared/vllm-build/jit/$HOSTNAME/deep_gemm"
+                export FLASHINFER_CACHE_DIR="/shared/vllm-build/jit/$HOSTNAME/flashinfer"
+                export TORCHINDUCTOR_CACHE_DIR="/shared/vllm-build/jit/$HOSTNAME/inductor"
+                export VLLM_CACHE_ROOT="/shared/vllm-build/jit/$HOSTNAME/vllm"
+
                 #################
                 # RUN vLLM DeepSeek-V4.1-Flash prefill worker
                 #################
@@ -131,8 +140,6 @@ spec:
                 value: "1"
               - name: VLLM_USE_DEEP_GEMM
                 value: "1"
-              - name: VLLM_DEEPEP_HIGH_THROUGHPUT_FORCE_INTRA_NODE
-                value: "1"
               - name: NVIDIA_GDRCOPY
                 value: enabled
               # Pods on this cluster get no /dev/infiniband; once CUDA is up,
@@ -140,18 +147,6 @@ spec:
               # NIXL dies with NIXL_ERR_BACKEND. Keep NIXL on the pod network.
               - name: UCX_TLS
                 value: tcp,cuda_copy,sm
-              # Override container default that disables VMM
-              # VMM is required for fabric memory / MNNVL cross-pod communication
-              - name: NVSHMEM_DISABLE_CUDA_VMM
-                value: "0"
-              - name: NVSHMEM_DEBUG
-                value: INFO
-              - name: NVSHMEM_REMOTE_TRANSPORT
-                value: ibgda
-              - name: NVSHMEM_IB_ENABLE_IBGDA
-                value: "true"
-              - name: NVSHMEM_BOOTSTRAP_UID_SOCK_IFNAME
-                value: eth0
               - name: GLOO_SOCKET_IFNAME
                 value: eth0
               - name: NCCL_SOCKET_IFNAME
