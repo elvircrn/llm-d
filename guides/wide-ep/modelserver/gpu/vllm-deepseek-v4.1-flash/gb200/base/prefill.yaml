@@ -66,6 +66,64 @@ spec:
                 # RUN vLLM DeepSeek-V4.1-Flash prefill worker
                 #################
 
+                case "${OFFLOADING_MODE:-off}" in
+                  cpu)
+                    KV_TRANSFER_CONFIG='{"kv_connector":"MultiConnector",
+                                          "kv_role":"kv_both",
+                                          "kv_load_failure_policy":"fail",
+                                          "kv_connector_extra_config":{
+                                            "connectors":[
+                                              {"kv_connector":"NixlConnector","kv_role":"kv_both",
+                                               "kv_connector_extra_config":{"kv_lease_duration":600}},
+                                              {"kv_connector":"OffloadingConnector","kv_role":"kv_both",
+                                               "kv_connector_extra_config":{
+                                                 "cpu_bytes_to_use":'"${KV_OFFLOAD_CPU_BYTES:-107374182400}"',
+                                                 "eviction_policy":"lru"
+                                            }}]}}'
+                    ;;
+                  tiered)
+                    KV_TRANSFER_CONFIG='{"kv_connector":"MultiConnector",
+                                          "kv_role":"kv_both",
+                                          "kv_load_failure_policy":"fail",
+                                          "kv_connector_extra_config":{
+                                            "connectors":[
+                                              {"kv_connector":"NixlConnector","kv_role":"kv_producer",
+                                               "kv_connector_extra_config":{"kv_lease_duration":600}},
+                                              {"kv_connector":"OffloadingConnector","kv_role":"kv_both",
+                                               "kv_connector_extra_config":{
+                                                 "spec_name":"TieringOffloadingSpec",
+                                                 "cpu_bytes_to_use":'"${KV_OFFLOAD_CPU_BYTES:-107374182400}"',
+                                                 "eviction_policy":"lru",
+                                                 "secondary_tiers":[{"type":"fs","root_dir":"/mnt/nvme-cache",
+                                                   "n_read_threads":16,"n_write_threads":16}]
+                                            }}]}}'
+                    ;;
+                  p2p)
+                    KV_TRANSFER_CONFIG='{"kv_connector":"MultiConnector",
+                                          "kv_role":"kv_both",
+                                          "kv_load_failure_policy":"fail",
+                                          "kv_connector_extra_config":{
+                                            "connectors":[
+                                              {"kv_connector":"NixlConnector","kv_role":"kv_both",
+                                               "kv_connector_extra_config":{"kv_lease_duration":600}},
+                                              {"kv_connector":"OffloadingConnector","kv_role":"kv_both",
+                                               "kv_connector_extra_config":{
+                                                 "spec_name":"TieringOffloadingSpec",
+                                                 "cpu_bytes_to_use":'"${KV_OFFLOAD_CPU_BYTES:-107374182400}"',
+                                                 "eviction_policy":"lru",
+                                                 "offload_prompt_only":false,
+                                                 "self_describing_kv_events":true,
+                                                 "secondary_tiers":[{"type":"p2p","host":"'"${POD_IP}"'",
+                                                   "port":'"$((7777 - START_RANK))"'}]
+                                            }}]}}'
+                    ;;
+                  *)
+                    KV_TRANSFER_CONFIG='{"kv_connector":"NixlConnector",
+                                          "kv_role":"kv_both",
+                                          "kv_connector_extra_config":{"kv_lease_duration":600}}'
+                    ;;
+                esac
+
                 set -- deepseek-ai/DeepSeek-V4.1-Flash \
                   --revision 5254448103b6254fc646dacbca1cbbf20e9216c1 \
                   --tokenizer-revision 5254448103b6254fc646dacbca1cbbf20e9216c1 \
@@ -97,10 +155,20 @@ spec:
                   --speculative-config "{\"method\":\"dspark\",\"num_speculative_tokens\":$DSPEC_NUM_TOKENS,\"draft_sample_method\":\"probabilistic\",\"rejection_sample_method\":\"standard\",\"enable_adaptive_verification\":false}" \
                   --engram-config '{"cpu_offload":true,"dp_shared_memory":true}' \
                   --kv-cache-dtype fp8 \
-                  --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_both","kv_connector_extra_config":{"kv_lease_duration":600}}' \
+                  --kv-transfer-config "$KV_TRANSFER_CONFIG" \
                   --disable-uvicorn-access-log \
                   --disable-access-log-for-endpoints /health,/metrics,/v1/models \
                   ${VLLM_EXTRA_ARGS:-}
+
+                if [ "${OFFLOADING_MODE:-off}" = "p2p" ]; then
+                  # The router's precise prefix index subscribes to these
+                  # per-rank ZMQ publishers; the topic names this pod by the
+                  # router-facing endpoint port, not the engine port.
+                  set -- "$@" \
+                    --kv-events-config '{"enable_kv_cache_events":true,"publisher":"zmq",
+                                         "endpoint":"tcp://*:'"$((5556 - START_RANK))"'",
+                                         "topic":"kv@'"${POD_IP}"':8000@deepseek-ai/DeepSeek-V4.1-Flash"}'
+                fi
 
                 # Strict prefix-cache affinity requires THP off for the
                 # whole vLLM process tree; PR_SET_THP_DISABLE survives

@@ -1,0 +1,22 @@
+# Tokenization endpoint for the router's token-producer: the EPP tokenizes
+# every request's prompt against /v1/completions/render to match prefixes
+# in the precise KV index. The Service fronts the prefill engines' own
+# render endpoints; targetPort is the prefill engine port, since the decode
+# pods' port 8000 belongs to the routing sidecar, which does not serve
+# /render. Render capacity is prefill CPU; if tokenization contends with
+# serving, stand up a dedicated `vllm launch render` pool instead.
+apiVersion: v1
+kind: Service
+metadata:
+  name: dsv41-flash-render
+  labels:
+    llm-d.ai/model: DeepSeek-V4.1-Flash
+spec:
+  selector:
+    llm-d.ai/inferenceServing: "true"
+    llm-d.ai/model: DeepSeek-V4.1-Flash
+    llm-d.ai/role: prefill
+  ports:
+    - name: render-http
+      port: 8000
+      targetPort: 8000

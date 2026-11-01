@@ -1,0 +1,103 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+# Enable P2P KV-cache sharing on both roles: every pod offloads to a CPU
+# tier that peers pull from over NIXL, guided by the router's precise
+# prefix index. The offloading-p2p pull fires only when the router values
+# also run the p2p-source-producer (see
+# ../../../../../../router/dsv41-flash-pd-p2p.values.yaml).
+
+# Both patches match the LeaderWorkerSets the gb200 base declares. The CPU
+# tier mmaps in /dev/shm, so dshm and memory grow to hold it on each role:
+# 189 GiB engram tables + 4 DP ranks x KV_OFFLOAD_CPU_BYTES (100 GiB
+# default). Size the tier from the per-pod GPU KV capacity the engine
+# reports at startup, per role, before trusting these defaults.
+
+# PYTHONHASHSEED must hold the same value on every peer: block hashes are
+# seeded per process, and peers whose seeds differ reject each other's
+# sessions at the P2P handshake.
+patches:
+  - patch: |-
+      apiVersion: leaderworkerset.x-k8s.io/v1
+      kind: LeaderWorkerSet
+      metadata:
+        name: wide-ep-dsv41-flash-prefill
+      spec:
+        leaderWorkerTemplate:
+          workerTemplate:
+            spec:
+              volumes:
+                - name: dshm
+                  emptyDir:
+                    medium: Memory
+                    sizeLimit: 640Gi
+              containers:
+                - name: vllm
+                  env:
+                    - name: OFFLOADING_MODE
+                      value: "p2p"
+                    - name: PYTHONHASHSEED
+                      value: "0"
+                    - name: POD_IP
+                      valueFrom:
+                        fieldRef:
+                          fieldPath: status.podIP
+                    - name: VLLM_P2P_SIDE_CHANNEL_HOST
+                      valueFrom:
+                        fieldRef:
+                          fieldPath: status.podIP
+                  resources:
+                    limits:
+                      memory: 768Gi
+                    requests:
+                      memory: 768Gi
+  - patch: |-
+      apiVersion: leaderworkerset.x-k8s.io/v1
+      kind: LeaderWorkerSet
+      metadata:
+        name: wide-ep-dsv41-flash-decode
+      spec:
+        leaderWorkerTemplate:
+          workerTemplate:
+            spec:
+              volumes:
+                - name: dshm
+                  emptyDir:
+                    medium: Memory
+                    sizeLimit: 640Gi
+              initContainers:
+                - name: routing-proxy
+                  # args is replaced wholesale by the strategic merge, so the
+                  # full sidecar arg list is restated with the pull enabled.
+                  args:
+                    - --port=8000
+                    - --vllm-port=8200
+                    - --kv-connector=nixlv2
+                    - --prefill-max-retries=3
+                    - --enable-p2p-pull
+                    - --zap-log-level=1
+                    - --secure-proxy=false
+                  env:
+                    - name: POD_IP
+                      valueFrom:
+                        fieldRef:
+                          fieldPath: status.podIP
+              containers:
+                - name: vllm
+                  env:
+                    - name: OFFLOADING_MODE
+                      value: "p2p"
+                    - name: PYTHONHASHSEED
+                      value: "0"
+                    - name: POD_IP
+                      valueFrom:
+                        fieldRef:
+                          fieldPath: status.podIP
+                    - name: VLLM_P2P_SIDE_CHANNEL_HOST
+                      valueFrom:
+                        fieldRef:
+                          fieldPath: status.podIP
+                  resources:
+                    limits:
+                      memory: 768Gi
+                    requests:
+                      memory: 768Gi

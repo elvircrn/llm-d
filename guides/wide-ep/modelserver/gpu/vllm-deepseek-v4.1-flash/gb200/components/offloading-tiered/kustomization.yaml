@@ -1,0 +1,40 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+# Enable tiered (CPU + local NVMe) KV-cache offloading on the prefill role.
+
+# The patch below matches the LeaderWorkerSet the gb200 base declares. The
+# CPU tier mmaps in /dev/shm, so dshm and memory grow to hold it: 189 GiB
+# engram tables + 4 DP ranks x KV_OFFLOAD_CPU_BYTES (100 GiB default). The
+# NVMe tier spills to the host path mounted at /mnt/nvme-cache.
+patches:
+  - patch: |-
+      apiVersion: leaderworkerset.x-k8s.io/v1
+      kind: LeaderWorkerSet
+      metadata:
+        name: wide-ep-dsv41-flash-prefill
+      spec:
+        leaderWorkerTemplate:
+          workerTemplate:
+            spec:
+              volumes:
+                - name: dshm
+                  emptyDir:
+                    medium: Memory
+                    sizeLimit: 640Gi
+                - name: nvme-cache
+                  hostPath:
+                    path: /mnt/local/kv-cache
+                    type: DirectoryOrCreate
+              containers:
+                - name: vllm
+                  env:
+                    - name: OFFLOADING_MODE
+                      value: "tiered"
+                  resources:
+                    limits:
+                      memory: 768Gi
+                    requests:
+                      memory: 768Gi
+                  volumeMounts:
+                    - name: nvme-cache
+                      mountPath: /mnt/nvme-cache

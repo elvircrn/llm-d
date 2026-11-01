@@ -4,3 +4,9 @@ resources:
   - decode.yaml
   - prefill.yaml
   - serviceAccount.yaml
+
+# The schema teaches kustomize the LeaderWorkerSet merge keys, so strategic
+# merge patches anywhere in a build composing this base match containers,
+# volumes, env entries, and volume mounts by name instead of array index.
+openapi:
+  path: leaderworkerset-schema.json

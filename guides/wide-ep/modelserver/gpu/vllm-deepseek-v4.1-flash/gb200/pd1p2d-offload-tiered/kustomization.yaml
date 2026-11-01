@@ -1,0 +1,9 @@
+# pd1p2d with CPU + NVMe tiered KV-cache offloading on prefill: same pod
+# shape as pd1p2d, only the prefill role's connector stack and host sizing
+# change.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../pd1p2d
+components:
+  - ../components/offloading-tiered
