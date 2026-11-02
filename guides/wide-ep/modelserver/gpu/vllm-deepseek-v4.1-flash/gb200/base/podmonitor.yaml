@@ -1,0 +1,13 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: vllm-dsv41-flash
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/inferenceServing: "true"
+      llm-d.ai/model: DeepSeek-V4.1-Flash
+  podMetricsEndpoints:
+    - port: http
+      path: /metrics
+      interval: 5s
