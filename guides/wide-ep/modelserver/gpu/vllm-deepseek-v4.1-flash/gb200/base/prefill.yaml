@@ -53,12 +53,16 @@ spec:
 
                 if [ -f /opt/vllm/bin/activate ]; then source /opt/vllm/bin/activate; fi
 
-                # First boot JIT-compiles Triton, DeepGEMM, FlashInfer and
-                # inductor kernels; the caches persist on the build-cache PVC,
-                # per-pod prefixed so concurrent pods never share a dir.
+                # First boot JIT-compiles Triton, DeepGEMM, FlashInfer,
+                # TileLang and inductor kernels; the caches persist on the
+                # build-cache PVC, per-pod prefixed so concurrent pods never
+                # share a dir. TileLang commits each kernel through a
+                # per-process staging dir and an atomic rename, so the pod's
+                # DP ranks can share one cache dir.
                 export TRITON_CACHE_DIR="/shared/vllm-build/jit/$HOSTNAME/triton"
                 export DG_JIT_CACHE_DIR="/shared/vllm-build/jit/$HOSTNAME/deep_gemm"
                 export FLASHINFER_CACHE_DIR="/shared/vllm-build/jit/$HOSTNAME/flashinfer"
+                export TILELANG_CACHE_DIR="/shared/vllm-build/jit/$HOSTNAME/tilelang"
                 export TORCHINDUCTOR_CACHE_DIR="/shared/vllm-build/jit/$HOSTNAME/inductor"
                 export VLLM_CACHE_ROOT="/shared/vllm-build/jit/$HOSTNAME/vllm"
 
