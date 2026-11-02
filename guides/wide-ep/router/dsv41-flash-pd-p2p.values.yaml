@@ -10,10 +10,11 @@
 # prefill leg.
 router:
   epp:
-    # p2p-source-producer shipped in llm-d-router v0.10.0; pin the image so
-    # the floating v0 chart version cannot resolve to an older EPP.
+    # Pin to a release that watches inference.networking.k8s.io, the only
+    # group the chart's Role grants: v0.11.0 watches the legacy
+    # inference.networking.x-k8s.io group and cannot sync its caches.
     image:
-      tag: v0.11.0
+      tag: v1.0.0
     flags:
       allow-experimental-plugins: true
     pluginsConfigFile: "dsv41-flash-pd-p2p-config.yaml"
@@ -62,15 +63,15 @@ router:
               # close to the GPU tier.
               - name: cpu
                 weight: 0.9
-              tokenProcessorConfig:
-                blockSizeTokens: 64
-              speculativeIndexing: false
-              kvEventsConfig:
-                topicFilter: "kv@"
-                concurrency: 8
-                discoverPods: true
-                podDiscoveryConfig:
-                  socketPort: 5556
+            tokenProcessorConfig:
+              blockSizeTokens: 64
+            speculativeIndexing: false
+            kvEventsConfig:
+              topicFilter: "kv@"
+              concurrency: 8
+              discoverPods: true
+              podDiscoveryConfig:
+                socketPort: 5556
         - type: p2p-source-producer
           parameters:
             prefixMatchInfoProducerName: precise-prefix-cache-producer
