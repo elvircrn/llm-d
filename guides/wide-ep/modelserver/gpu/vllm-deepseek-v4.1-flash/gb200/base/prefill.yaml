@@ -1,7 +1,7 @@
 # Prefill role of the DeepSeek-V4.1-Flash disaggregated P/D serving shape
 # for GB200 NVL72 trays: one pod per 4-GPU tray running TP1 x DP4 + EP4
 # behind --data-parallel-hybrid-lb, DSpark speculative decoding, and the
-# engram tables CPU-offloaded into a DP-shared /dev/shm segment. The MoE
+# engram tables CPU-offloaded with embeddings sharded across DP ranks. The MoE
 # all-to-all stays inside the pod's NVLink domain; prefill-to-decode KV
 # crosses pods through NixlConnector.
 apiVersion: leaderworkerset.x-k8s.io/v1
@@ -28,8 +28,8 @@ spec:
           - name: dshm
             emptyDir:
               medium: Memory
-              # The DP-shared engram tables need ~189 GiB of /dev/shm
-              # (768M entries x 264 B); NCCL wants a few GiB on top.
+              # The engram tables are DP-sharded into private host
+              # memory; /dev/shm only serves NCCL and IPC now.
               sizeLimit: 256Gi
         containers:
           - name: vllm
@@ -145,22 +145,23 @@ spec:
                   --enable-eplb \
                   --eplb-config '{"communicator":"symm_mem","num_redundant_experts":32,"window_size":1000,"step_interval":3000,"use_async":true}' \
                   --disable-ep-weight-filter \
-                  --kernel-config '{"moe_backend":"deep_gemm_mega_moe"}' \
+                  --kernel-config '{"moe_backend":"deep_gemm_mega_moe","enable_flashinfer_autotune":true}'
+                  --attention-config '{"backend":"FLASHINFER_MLA_SPARSE_DSV41","indexer_kv_dtype":"mxfp4","indexer_sparse_logits":true}' \
                   --tokenizer-mode deepseek_v41 \
                   --reasoning-parser deepseek_v41 \
                   --tool-call-parser deepseek_v41 \
                   --enable-auto-tool-choice \
                   --language-model-only \
-                  --max-model-len auto \
+                  --max-model-len 1048576 \
                   --max-num-batched-tokens 8192 \
                   --gpu-memory-utilization 0.90 \
                   --enable-prefix-caching \
                   --enable-chunked-prefill \
                   --enable-prompt-tokens-details \
                   --safetensors-load-strategy prefetch \
-                  --speculative-config "{\"method\":\"dspark\",\"num_speculative_tokens\":$DSPEC_NUM_TOKENS,\"draft_sample_method\":\"probabilistic\",\"rejection_sample_method\":\"standard\",\"enable_adaptive_verification\":true}" \
-                  --compilation-config '{"mode":"VLLM_COMPILE","cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[6,12,18,24,30,36,48,60,72,96,120,144,192,240,288,384,480,576,768,1020,1536,2046],"max_cudagraph_capture_size":2046}' \
-                  --engram-config '{"cpu_offload":true,"dp_shared_memory":true}' \
+                  --speculative-config "{\"method\":\"dspark\",\"num_speculative_tokens\":$DSPEC_NUM_TOKENS,\"draft_sample_method\":\"probabilistic\",\"rejection_sample_method\":\"block\",\"enable_adaptive_verification\":true}" \
+                  --compilation-config '{"mode":"VLLM_COMPILE","cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[5,10,15,20,25,30,40,50,60,80,100,120,160,200,240,320,400,480,640,850,1280,1705,2045],"max_cudagraph_capture_size":2045}' \
+                  --engram-config '{"cpu_offload":true,"embedding_across_dp":true}' \
                   --kv-cache-dtype fp8 \
                   --kv-transfer-config "$KV_TRANSFER_CONFIG" \
                   --disable-uvicorn-access-log \
@@ -217,6 +218,8 @@ spec:
               - name: VLLM_RANDOMIZE_DP_DUMMY_INPUTS
                 value: "1"
               - name: VLLM_USE_DEEP_GEMM
+                value: "1"
+              - name: VLLM_USE_V2_MODEL_RUNNER
                 value: "1"
               - name: NVIDIA_GDRCOPY
                 value: enabled
