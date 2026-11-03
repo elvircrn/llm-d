@@ -8,6 +8,12 @@ router:
       protocol: TCP
       targetPort: 8081
 
+  # The chart defaults the EPP image to the moving :main tag; this pairs the
+  # release image with the digest-pinned chart the campaign config names.
+  epp:
+    image:
+      tag: "v1.0.0"
+
   modelServers:
     matchLabels:
       llm-d.ai/model: Qwen3-4B-Instruct
