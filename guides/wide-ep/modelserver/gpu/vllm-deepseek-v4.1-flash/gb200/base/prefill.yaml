@@ -227,7 +227,7 @@ spec:
               - name: UCX_TLS
                 value: cuda_copy,cuda_ipc,tcp
               - name: UCX_CUDA_IPC_ENABLE_MNNVL
-                value: "y"
+                value: "1"
               - name: GLOO_SOCKET_IFNAME
                 value: eth0
               - name: NCCL_SOCKET_IFNAME
