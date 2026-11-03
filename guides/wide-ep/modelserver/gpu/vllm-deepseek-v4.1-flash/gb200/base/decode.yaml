@@ -199,7 +199,7 @@ spec:
               - name: DP_SIZE_LOCAL
                 value: "4"
               - name: DSPEC_NUM_TOKENS
-                value: "5"
+                value: "4"
               # Enables POST /reset_prefix_cache, which the benchmark
               # harness calls on every engine between concurrency levels.
               - name: VLLM_SERVER_DEV_MODE
