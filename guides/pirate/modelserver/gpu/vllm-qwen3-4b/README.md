@@ -1,18 +1,17 @@
 # Pirate (RDU4) — Qwen3-4B-Instruct aggregated serving
 
 Single-GPU aggregated vLLM serving of `Qwen/Qwen3-4B-Instruct-2507` on the
-Pirate (RDU4) OpenShift cluster's A100-SXM4-80GB nodes, fronted by the
-llm-d standalone router. Consumed by the crucible-domains campaign
-`campaign.qwen3-4b-a100-pirate.json`; the campaign replaces the `vllm`
-container image from its config's `vllm_image`.
+Pirate (RDU4) OpenShift cluster's A100-SXM4-80GB nodes, benchmarked through
+the StatefulSet's own Service with no routing layer. The campaign path for
+this cluster is the operator-owned `../../llmisvc/qwen3-4b/` overlay; this
+direct variant exists for measuring the bare engine. The campaign replaces
+the `vllm` container image from its config's `vllm_image`.
 
 ## Layout
 
 - `base/` — StatefulSet (1 replica, 1 GPU) plus its headless Service. The
   storage-initializer pulls the ungated model from Hugging Face into an
   emptyDir; no HF token Secret is required.
-- `../../router/qwen3-4b.values.yaml` — router chart values selecting these
-  pods via `llm-d.ai/model` and exposing the Envoy data plane on port 80.
 
 ## Cluster constraints
 

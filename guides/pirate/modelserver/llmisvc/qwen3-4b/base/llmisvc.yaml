@@ -1,0 +1,49 @@
+# Aggregated single-GPU serving through the RHOAI operator: the tenant
+# applies only this LLMInferenceService; the operator creates the workload
+# Deployment, the EPP scheduler, the InferencePool, and the HTTPRoute on the
+# shared openshift-ai-inference gateway. Tenants on this cluster hold no
+# create on InferencePool or Gateway, so the standalone llm-d router chart
+# cannot deploy here.
+apiVersion: serving.kserve.io/v1alpha2
+kind: LLMInferenceService
+metadata:
+  name: qwen3-4b
+spec:
+  baseRefs: []
+  model:
+    uri: hf://Qwen/Qwen3-4B-Instruct-2507
+    name: Qwen/Qwen3-4B-Instruct-2507
+  replicas: 1
+  parallelism:
+    tensor: 1
+  router:
+    gateway:
+      refs:
+        - name: openshift-ai-inference
+          namespace: openshift-ingress
+    route: {}
+    scheduler: {}
+  template:
+    nodeSelector:
+      nvidia.com/gpu.product: NVIDIA-A100-SXM4-80GB
+    containers:
+      # The operator injects the vllm serve command into the container named
+      # main and reads VLLM_ADDITIONAL_ARGS from it; the campaign stamps the
+      # pinned runtime image into the same container.
+      - name: main
+        env:
+          - name: VLLM_ADDITIONAL_ARGS
+            value: >-
+              --tensor-parallel-size=1
+              --gpu-memory-utilization=0.90
+              --max-model-len=8192
+              --enable-prefix-caching
+        resources:
+          requests:
+            cpu: "4"
+            memory: 16Gi
+            nvidia.com/gpu: "1"
+          limits:
+            cpu: "8"
+            memory: 32Gi
+            nvidia.com/gpu: "1"
