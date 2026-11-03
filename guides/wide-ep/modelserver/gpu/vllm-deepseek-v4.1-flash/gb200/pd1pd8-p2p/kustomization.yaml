@@ -1,0 +1,10 @@
+# pd1pd8 with P2P KV-cache sharing on both roles: every pod serves peer
+# pulls from its CPU tier, and the router pulls a prefix onto the scheduled
+# prefill engine instead of recomputing it.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../pd1pd8
+  - render.yaml
+components:
+  - ../components/offloading-p2p

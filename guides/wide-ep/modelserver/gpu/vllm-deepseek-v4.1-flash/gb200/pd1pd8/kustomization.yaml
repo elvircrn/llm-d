@@ -1,0 +1,11 @@
+# pd1pd8: the gb200 base shape with the decode engine spanning eight pods.
+# LeaderWorkerSet size counts pods per group, so one group of leader plus
+# seven workers gives LWS_GROUP_SIZE 8 and the launch script derives
+# data-parallel-size 32, per-pod start ranks, and per-rank side-channel ports
+# from it: one dp32/ep32 engine across eight 4-GPU trays.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+patches:
+  - path: decode-span.yaml

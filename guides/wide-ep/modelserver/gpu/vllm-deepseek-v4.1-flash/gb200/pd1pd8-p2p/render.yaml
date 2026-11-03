@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dsv41-flash-render
+spec:
+  selector:
+    wide-ep-decode-role: prefill
