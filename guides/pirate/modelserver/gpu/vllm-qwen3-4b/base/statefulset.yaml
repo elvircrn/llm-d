@@ -1,0 +1,133 @@
+# Aggregated single-GPU vLLM StatefulSet for the Pirate (RDU4 OpenShift)
+# cluster. The RHOAI images are the only ones proven to run under the
+# namespace's default SecurityContextConstraints; upstream vllm-openai
+# images run as UID 0 and are refused.
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-qwen3-4b
+  labels:
+    llm-d.ai/model: Qwen3-4B-Instruct
+    llm-d.ai/guide: pirate
+spec:
+  clusterIP: None
+  selector:
+    app: vllm-qwen3-4b
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: vllm-qwen3-4b
+  labels:
+    llm-d.ai/model: Qwen3-4B-Instruct
+    llm-d.ai/guide: pirate
+spec:
+  replicas: 1
+  serviceName: vllm-qwen3-4b
+  selector:
+    matchLabels:
+      app: vllm-qwen3-4b
+  template:
+    metadata:
+      labels:
+        app: vllm-qwen3-4b
+        llm-d.ai/model: Qwen3-4B-Instruct
+        llm-d.ai/guide: pirate
+        llm-d.ai/inference-serving: "true"
+    spec:
+      nodeSelector:
+        nvidia.com/gpu.product: NVIDIA-A100-SXM4-80GB
+      initContainers:
+        - name: storage-initializer
+          image: registry.redhat.io/rhoai/odh-kserve-storage-initializer-rhel9@sha256:65f5cb3580d55024249e5ff3ed653a80008eda8a4ec58bbd52b4865940c35c3d
+          args:
+            - hf://Qwen/Qwen3-4B-Instruct-2507
+            - /mnt/models
+          env:
+            - name: HF_HUB_ENABLE_HF_TRANSFER
+              value: "1"
+          volumeMounts:
+            - name: model-storage
+              mountPath: /mnt/models
+          resources:
+            requests:
+              cpu: 100m
+              memory: 100Mi
+            limits:
+              cpu: "1"
+              memory: 24Gi
+      containers:
+        - name: vllm
+          image: registry.redhat.io/rhaii-early-access/vllm-cuda-rhel9@sha256:e95153e0bdce2b94d0470d4ac983d3c4b67576280afe99e97ce51700c57f3e5a
+          imagePullPolicy: Always
+          command:
+            - /bin/bash
+            - -c
+          args:
+            - |-
+              exec vllm serve /mnt/models \
+                --served-model-name Qwen3-4B-Instruct \
+                --port 8000 \
+                --tensor-parallel-size 1 \
+                --gpu-memory-utilization 0.9 \
+                --max-model-len 32768 \
+                --enable-prefix-caching \
+                --disable-uvicorn-access-log
+          env:
+            - name: HOME
+              value: /home
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 120
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "4"
+              memory: 16Gi
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "8"
+              memory: 32Gi
+              nvidia.com/gpu: "1"
+          volumeMounts:
+            - name: model-storage
+              mountPath: /mnt/models
+              readOnly: true
+            - name: dshm
+              mountPath: /dev/shm
+            - name: home
+              mountPath: /home
+      volumes:
+        - name: model-storage
+          emptyDir: {}
+        - name: dshm
+          emptyDir:
+            medium: Memory
+        - name: home
+          emptyDir: {}
