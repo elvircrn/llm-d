@@ -31,6 +31,9 @@ spec:
               # The engram tables are DP-sharded into private host
               # memory; /dev/shm only serves NCCL and IPC now.
               sizeLimit: 256Gi
+          - name: lustre
+            persistentVolumeClaim:
+              claimName: lustre-pvc-vllm
         containers:
           - name: vllm
             image: docker.io/vllm/vllm-openai:nightly
@@ -55,16 +58,16 @@ spec:
 
                 # First boot JIT-compiles Triton, DeepGEMM, FlashInfer,
                 # TileLang and inductor kernels; the caches persist on the
-                # build-cache PVC, per-pod prefixed so concurrent pods never
+                # lustre volume, per-pod prefixed so concurrent pods never
                 # share a dir. TileLang commits each kernel through a
                 # per-process staging dir and an atomic rename, so the pod's
                 # DP ranks can share one cache dir.
-                export TRITON_CACHE_DIR="/shared/vllm-build/jit/$HOSTNAME/triton"
-                export DG_JIT_CACHE_DIR="/shared/vllm-build/jit/$HOSTNAME/deep_gemm"
-                export FLASHINFER_CACHE_DIR="/shared/vllm-build/jit/$HOSTNAME/flashinfer"
-                export TILELANG_CACHE_DIR="/shared/vllm-build/jit/$HOSTNAME/tilelang"
-                export TORCHINDUCTOR_CACHE_DIR="/shared/vllm-build/jit/$HOSTNAME/inductor"
-                export VLLM_CACHE_ROOT="/shared/vllm-build/jit/$HOSTNAME/vllm"
+                export TRITON_CACHE_DIR="/mnt/lustre/jit/$HOSTNAME/triton"
+                export DG_JIT_CACHE_DIR="/mnt/lustre/jit/$HOSTNAME/deep_gemm"
+                export FLASHINFER_CACHE_DIR="/mnt/lustre/jit/$HOSTNAME/flashinfer"
+                export TILELANG_CACHE_DIR="/mnt/lustre/jit/$HOSTNAME/tilelang"
+                export TORCHINDUCTOR_CACHE_DIR="/mnt/lustre/jit/$HOSTNAME/inductor"
+                export VLLM_CACHE_ROOT="/mnt/lustre/jit/$HOSTNAME/vllm"
 
                 #################
                 # RUN vLLM DeepSeek-V4.1-Flash prefill worker
@@ -189,10 +192,9 @@ spec:
                     name: hf-secret
                     key: HF_TOKEN
               # The ~509 GB checkpoint cannot download into the pod's
-              # ephemeral storage; weights load from the lustre HF cache,
-              # the build-cache mount the campaign injects at this path.
+              # ephemeral storage; weights load from the lustre mount.
               - name: HF_HUB_CACHE
-                value: /shared/vllm-build
+                value: /mnt/lustre
               - name: HF_HUB_DISABLE_XET
                 value: "1"
               - name: DP_SIZE_LOCAL
@@ -274,3 +276,5 @@ spec:
             volumeMounts:
               - mountPath: /dev/shm
                 name: dshm
+              - mountPath: /mnt/lustre
+                name: lustre
