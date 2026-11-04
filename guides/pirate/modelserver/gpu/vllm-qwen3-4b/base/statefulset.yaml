@@ -70,8 +70,39 @@ spec:
             - -c
           args:
             - |-
+              python3 - <<'PY'
+              import pathlib
+              import vllm
+
+              path = pathlib.Path(vllm.__file__).parent / "entrypoints/serve/profile/api_router.py"
+              source = path.read_text()
+              needle = '''@router.post("/start_profile")
+              async def start_profile(raw_request: Request):
+                  logger.info("Starting profiler...")
+                  await engine_client(raw_request).start_profile()
+              '''
+              replacement = '''class StartProfileRequest(BaseModel):
+                  profile_prefix: str | None = None
+
+
+              @router.post("/start_profile")
+              async def start_profile(raw_request: Request, body: StartProfileRequest | None = None):
+                  logger.info("Starting profiler...")
+                  await engine_client(raw_request).start_profile(
+                      profile_prefix=body.profile_prefix if body is not None else None)
+              '''
+              if "StartProfileRequest" not in source:
+                  if needle not in source:
+                      raise SystemExit(f"{path} does not match the vLLM 0.21 profile router")
+                  path.write_text(
+                      source.replace(needle, replacement).replace(
+                          "from fastapi import APIRouter, FastAPI, Request",
+                          "from fastapi import APIRouter, FastAPI, Request\nfrom pydantic import BaseModel",
+                      )
+                  )
+              PY
               exec vllm serve /mnt/models \
-                --served-model-name Qwen3-4B-Instruct \
+                --served-model-name Qwen/Qwen3-4B-Instruct-2507 \
                 --port 8000 \
                 --tensor-parallel-size 1 \
                 --gpu-memory-utilization 0.9 \
@@ -81,6 +112,10 @@ spec:
           env:
             - name: HOME
               value: /home
+            - name: TP_SIZE
+              value: "1"
+            - name: DP_SIZE_LOCAL
+              value: "1"
           ports:
             - name: http
               containerPort: 8000
