@@ -149,7 +149,7 @@ spec:
                   --eplb-config '{"communicator":"symm_mem","num_redundant_experts":32,"window_size":1000,"step_interval":3000,"use_async":true}' \
                   --disable-ep-weight-filter \
                   --kernel-config '{"moe_backend":"deep_gemm_mega_moe","enable_flashinfer_autotune":true}' \
-                  --attention-config '{"backend":"FLASHINFER_MLA_SPARSE_DSV41","indexer_kv_dtype":"mxfp4","indexer_sparse_logits":true}' \
+                  --attention-config '{"backend":"FLASHMLA_MEGA_ATTN_DSV41","indexer_kv_dtype":"mxfp4","indexer_sparse_logits":true}' \
                   --tokenizer-mode deepseek_v41 \
                   --reasoning-parser deepseek_v41 \
                   --tool-call-parser deepseek_v41 \
@@ -162,7 +162,7 @@ spec:
                   --enable-chunked-prefill \
                   --enable-prompt-tokens-details \
                   --safetensors-load-strategy prefetch \
-                  --speculative-config "{\"method\":\"dspark\",\"num_speculative_tokens\":$DSPEC_NUM_TOKENS,\"draft_sample_method\":\"probabilistic\",\"rejection_sample_method\":\"block\",\"enable_adaptive_verification\":true}" \
+                  --speculative-config "{\"method\":\"dspark\",\"num_speculative_tokens\":$DSPEC_NUM_TOKENS,\"draft_sample_method\":\"probabilistic\",\"rejection_sample_method\":\"block\",\"enable_adaptive_verification\":false}" \
                   --compilation-config '{"mode":"VLLM_COMPILE","cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[5,10,15,20,25,30,40,50,60,80,100,120,160,200,240,320,400,480,640,850,1280,1705,2045],"max_cudagraph_capture_size":2045}' \
                   --engram-config '{"cpu_offload":true,"embedding_across_dp":true}' \
                   --kv-cache-dtype fp8 \
@@ -200,7 +200,7 @@ spec:
               - name: DP_SIZE_LOCAL
                 value: "4"
               - name: DSPEC_NUM_TOKENS
-                value: "4"
+                value: "5"
               # Enables POST /reset_prefix_cache, which the benchmark
               # harness calls on every engine between concurrency levels.
               - name: VLLM_SERVER_DEV_MODE

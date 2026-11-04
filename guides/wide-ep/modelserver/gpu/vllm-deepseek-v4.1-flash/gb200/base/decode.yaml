@@ -2,7 +2,7 @@
 # for GB200 NVL72 trays: one pod per 4-GPU tray running TP1 x DP4 + EP4
 # behind --data-parallel-hybrid-lb, DSpark speculative decoding with the
 # draft's experts sharded the same way as the target's, and the engram
-# tables CPU-offloaded with embeddings sharded across DP ranks. The routing
+# tables GPU-resident with embeddings sharded across DP ranks. The routing
 # sidecar takes the router's requests on 8000 and hands them to the
 # engine on 8200 after the chosen prefill engine computed the KV, which
 # the decode engine reads over NIXL.
@@ -56,8 +56,8 @@ spec:
           - name: dshm
             emptyDir:
               medium: Memory
-              # The engram tables are DP-sharded into private host
-              # memory; /dev/shm only serves NCCL and IPC now.
+              # The engram tables are GPU-resident; /dev/shm only
+              # serves NCCL and IPC.
               sizeLimit: 256Gi
           - name: lustre
             persistentVolumeClaim:
@@ -150,7 +150,7 @@ spec:
                   --eplb-config '{"communicator":"symm_mem","num_redundant_experts":32,"window_size":1000,"step_interval":3000,"use_async":true}' \
                   --disable-ep-weight-filter \
                   --kernel-config '{"moe_backend":"deep_gemm_mega_moe","enable_flashinfer_autotune":true}' \
-                  --attention-config '{"backend":"FLASHINFER_MLA_SPARSE_DSV41","indexer_kv_dtype":"mxfp4","indexer_sparse_logits":true}' \
+                  --attention-config '{"backend":"FLASHMLA_MEGA_ATTN_DSV41","indexer_kv_dtype":"mxfp4","indexer_sparse_logits":true}' \
                   --tokenizer-mode deepseek_v41 \
                   --reasoning-parser deepseek_v41 \
                   --tool-call-parser deepseek_v41 \
@@ -163,9 +163,9 @@ spec:
                   --enable-chunked-prefill \
                   --enable-prompt-tokens-details \
                   --safetensors-load-strategy prefetch \
-                  --speculative-config "{\"method\":\"dspark\",\"num_speculative_tokens\":$DSPEC_NUM_TOKENS,\"draft_sample_method\":\"probabilistic\",\"rejection_sample_method\":\"block\",\"enable_adaptive_verification\":true}" \
+                  --speculative-config "{\"method\":\"dspark\",\"num_speculative_tokens\":$DSPEC_NUM_TOKENS,\"draft_sample_method\":\"probabilistic\",\"rejection_sample_method\":\"block\",\"enable_adaptive_verification\":false}" \
                   --compilation-config '{"cudagraph_mode":"FULL_DECODE_ONLY","decoder_replay_cudagraph_capture_sizes":[5,10,15,20,25,30,40,50,60,80,100,120,160,200,240,320,400,480,640,850,1280,2048,2304,2560,2816,3072,3328,3584,3840,4096],"cudagraph_capture_sizes":[5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100,105,110,115,120,125,130,135,140,145,150,155,160,165,170,175,180,185,190,195,200],"max_cudagraph_capture_size":200}' \
-                  --engram-config '{"cpu_offload":true,"embedding_across_dp":true}' \
+                  --engram-config '{"cpu_offload":false,"embedding_across_dp":true}' \
                   --kv-cache-dtype fp8 \
                   --kv-transfer-config "$KV_TRANSFER_CONFIG" \
                   --disable-uvicorn-access-log \
@@ -202,7 +202,7 @@ spec:
               - name: DP_SIZE_LOCAL
                 value: "4"
               - name: DSPEC_NUM_TOKENS
-                value: "4"
+                value: "5"
               # Enables POST /reset_prefix_cache, which the benchmark
               # harness calls on every engine between concurrency levels.
               - name: VLLM_SERVER_DEV_MODE
