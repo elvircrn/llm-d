@@ -158,6 +158,7 @@ spec:
                   --language-model-only \
                   --max-model-len 1048576 \
                   --max-num-batched-tokens 8192 \
+                  --max-num-seqs 8192 \
                   --gpu-memory-utilization 0.90 \
                   --enable-prefix-caching \
                   --enable-chunked-prefill \
