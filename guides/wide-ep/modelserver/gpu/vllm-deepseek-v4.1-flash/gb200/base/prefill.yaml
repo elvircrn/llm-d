@@ -145,7 +145,7 @@ spec:
                   --enable-eplb \
                   --eplb-config '{"communicator":"symm_mem","num_redundant_experts":32,"window_size":1000,"step_interval":3000,"use_async":true}' \
                   --disable-ep-weight-filter \
-                  --kernel-config '{"moe_backend":"deep_gemm_mega_moe","enable_flashinfer_autotune":true}'
+                  --kernel-config '{"moe_backend":"deep_gemm_mega_moe","enable_flashinfer_autotune":true}' \
                   --attention-config '{"backend":"FLASHINFER_MLA_SPARSE_DSV41","indexer_kv_dtype":"mxfp4","indexer_sparse_logits":true}' \
                   --tokenizer-mode deepseek_v41 \
                   --reasoning-parser deepseek_v41 \
