@@ -172,16 +172,21 @@ spec:
                   --disable-access-log-for-endpoints /health,/metrics,/v1/models \
                   ${VLLM_EXTRA_ARGS:-}
 
-                if [ "${OFFLOADING_MODE:-off}" = "p2p" ]; then
-                  # The router's precise prefix index subscribes to these
-                  # per-rank ZMQ publishers; the topic names this pod by the
-                  # router-facing endpoint port, not the engine port.
-                  set -- "$@" \
-                    --enable-scale-out \
-                    --kv-events-config '{"enable_kv_cache_events":true,"publisher":"zmq",
-                                         "endpoint":"tcp://*:'"$((5556 - START_RANK))"'",
-                                         "topic":"kv@'"${POD_IP}"':8000@deepseek-ai/DeepSeek-V4.1-Flash"}'
-                fi
+                case "${OFFLOADING_MODE:-off}" in
+                  p2p)
+                    set -- "$@" --enable-scale-out
+                    ;;
+                esac
+
+                case "${OFFLOADING_MODE:-off}" in
+                  cpu|tiered|p2p)
+                    # The precise prefix index subscribes on one port per rank.
+                    set -- "$@" \
+                      --kv-events-config '{"enable_kv_cache_events":true,"publisher":"zmq",
+                                           "endpoint":"tcp://*:'"$((5556 - START_RANK))"'",
+                                           "topic":"kv@'"${POD_IP}"':8000@deepseek-ai/DeepSeek-V4.1-Flash"}'
+                    ;;
+                esac
 
                 # Strict prefix-cache affinity requires THP off for the
                 # whole vLLM process tree; PR_SET_THP_DISABLE survives
