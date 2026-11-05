@@ -2,9 +2,8 @@
 # guides/recipes/router/base.values.yaml. Prefill always goes to a prefill
 # engine and decode to a decode engine (always-disagg-pd-decider); prefill
 # picks the engine with the least queued token load, decode the least busy
-# engine. The gb200 model servers run
-# --data-parallel-hybrid-lb, so every role serves all DP ranks behind one
-# port: prefill engines on 8000 and the decode routing sidecar on 8000.
+# engine. Each pod exposes its four local DP ranks independently on ports
+# 8000-8003; decode uses the routing sidecar on those same ports.
 router:
   # The chart's Service exposes only 9002/9090/8081; benchmark clients call
   # http://<release>-epp.<ns>.svc.cluster.local/v1 on port 80, so map it to
@@ -51,11 +50,12 @@ router:
           - pluginRef: max-score-picker
 
   modelServers:
-    # All DP ranks sit behind the engine's hybrid LB on a single port per
-    # pod: prefill's vllm serve --port 8000 and decode's routing sidecar
-    # --port 8000.
+    # Each target port becomes a distinct rank endpoint in the EPP.
     targetPorts:
       - number: 8000
+      - number: 8001
+      - number: 8002
+      - number: 8003
     matchLabels:
       llm-d.ai/inferenceServing: "true"
       llm-d.ai/model: DeepSeek-V4.1-Flash

@@ -70,7 +70,8 @@ patches:
                   # full sidecar arg list is restated with the pull enabled.
                   args:
                     - --port=8000
-                    - --vllm-port=8200
+                    - --model-server-port=8200
+                    - --data-parallel-size=4
                     - --kv-connector=nixlv2
                     - --prefill-max-retries=3
                     - --enable-p2p-pull

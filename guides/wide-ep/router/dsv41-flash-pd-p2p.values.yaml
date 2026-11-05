@@ -54,7 +54,7 @@ router:
                 inMemoryConfig:
                   # Per-key LRU of (endpoint, tier) holders; size it at
                   # discovered endpoints x tiers.
-                  podCacheSize: 32
+                  podCacheSize: 128
               kvCacheBackendConfigs:
               - name: gpu
                 weight: 1.0
@@ -82,6 +82,14 @@ router:
             # the scheduled pod before a pull is requested; set from the
             # measured pull-versus-recompute crossover.
             minCachedTokenDelta: 2048
+        - type: prefix-cache-affinity-filter
+          parameters:
+            prefixMatchInfoProducerName: precise-prefix-cache-producer
+            affinityThreshold: 0.80
+            maxTTFTPenaltyMs: 18000
+            # Per-rank estimate from the current llm-d DeepSeek-V4 GB200 guide;
+            # replace with the calibration result for this model and chunk size.
+            peakPrefillThroughput: 5000
         - type: token-load-scorer
         - type: active-request-scorer
         - type: max-score-picker
@@ -97,6 +105,7 @@ router:
         - name: prefill
           plugins:
           - pluginRef: prefill-filter
+          - pluginRef: prefix-cache-affinity-filter
           - pluginRef: token-load-scorer
           - pluginRef: max-score-picker
         - name: decode
