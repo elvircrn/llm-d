@@ -227,8 +227,6 @@ spec:
                 value: "3600"
               - name: VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS
                 value: "1800"
-              - name: VLLM_DISTRIBUTED_USE_SPLIT_GROUP
-                value: "1"
               - name: TQDM_DISABLE
                 value: "1"
               - name: TRITON_LIBCUDA_PATH
