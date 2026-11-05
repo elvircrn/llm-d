@@ -4,4 +4,4 @@ resources:
   - ../pd2pd8
   - render.yaml
 components:
-  - ../components/offloading-cpu
+  - ../components/offloading-tiered

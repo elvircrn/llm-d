@@ -4,9 +4,9 @@ router:
       tag: v1.0.0
     flags:
       allow-experimental-plugins: true
-    pluginsConfigFile: "dsv41-flash-pd-cpu-config.yaml"
+    pluginsConfigFile: "dsv41-flash-pd-tiered-config.yaml"
     pluginsCustomConfig:
-      dsv41-flash-pd-cpu-config.yaml: |
+      dsv41-flash-pd-tiered-config.yaml: |
         apiVersion: llm-d.ai/v1alpha1
         kind: EndpointPickerConfig
         plugins:
