@@ -87,9 +87,8 @@ router:
             prefixMatchInfoProducerName: precise-prefix-cache-producer
             affinityThreshold: 0.80
             maxTTFTPenaltyMs: 18000
-            # Per-rank estimate from the current llm-d DeepSeek-V4 GB200 guide;
-            # replace with the calibration result for this model and chunk size.
-            peakPrefillThroughput: 5000
+            # Per-rank 8192-token prefill velocity on GB200.
+            peakPrefillThroughput: 46000
         - type: token-load-scorer
         - type: active-request-scorer
         - type: max-score-picker
