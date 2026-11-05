@@ -8,7 +8,7 @@ kind: Component
 
 # Both patches match the LeaderWorkerSets the gb200 base declares. The CPU
 # tier mmaps in /dev/shm, so dshm and memory grow to hold it on each role:
-# 189 GiB engram tables + 4 DP ranks x KV_OFFLOAD_CPU_BYTES (100 GiB
+# 189 GiB engram tables + 4 DP ranks x KV_OFFLOAD_CPU_BYTES (128 GiB
 # default). Size the tier from the per-pod GPU KV capacity the engine
 # reports at startup, per role, before trusting these defaults.
 
@@ -29,12 +29,14 @@ patches:
                 - name: dshm
                   emptyDir:
                     medium: Memory
-                    sizeLimit: 640Gi
+                    sizeLimit: 768Gi
               containers:
                 - name: vllm
                   env:
                     - name: OFFLOADING_MODE
                       value: "p2p"
+                    - name: KV_OFFLOAD_CPU_BYTES
+                      value: "137438953472"
                     - name: PYTHONHASHSEED
                       value: "0"
                     - name: POD_IP
@@ -47,9 +49,9 @@ patches:
                           fieldPath: status.podIP
                   resources:
                     limits:
-                      memory: 768Gi
+                      memory: 896Gi
                     requests:
-                      memory: 768Gi
+                      memory: 896Gi
   - patch: |-
       apiVersion: leaderworkerset.x-k8s.io/v1
       kind: LeaderWorkerSet
@@ -63,7 +65,7 @@ patches:
                 - name: dshm
                   emptyDir:
                     medium: Memory
-                    sizeLimit: 640Gi
+                    sizeLimit: 768Gi
               initContainers:
                 - name: routing-proxy
                   # args is replaced wholesale by the strategic merge, so the
@@ -87,6 +89,8 @@ patches:
                   env:
                     - name: OFFLOADING_MODE
                       value: "p2p"
+                    - name: KV_OFFLOAD_CPU_BYTES
+                      value: "137438953472"
                     - name: PYTHONHASHSEED
                       value: "0"
                     - name: POD_IP
@@ -99,6 +103,6 @@ patches:
                           fieldPath: status.podIP
                   resources:
                     limits:
-                      memory: 768Gi
+                      memory: 896Gi
                     requests:
-                      memory: 768Gi
+                      memory: 896Gi
