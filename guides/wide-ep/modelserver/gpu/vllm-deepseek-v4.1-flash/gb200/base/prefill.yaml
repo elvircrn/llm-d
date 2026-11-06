@@ -196,6 +196,10 @@ spec:
                 # exec and fork, so every engine and worker inherits it.
                 exec python3 -c "import ctypes, os, sys; r = ctypes.CDLL(None, use_errno=True).prctl(41, 1, 0, 0, 0); print(\"THP disabled\" if r == 0 else \"WARNING: PR_SET_THP_DISABLE failed errno=%d\" % ctypes.get_errno(), file=sys.stderr, flush=True); os.execvp(\"vllm\", [\"vllm\", \"serve\"] + sys.argv[1:])" "$@"
             env:
+              - name: POD_IP
+                valueFrom:
+                  fieldRef:
+                    fieldPath: status.podIP
               - name: HF_TOKEN
                 valueFrom:
                   secretKeyRef:
