@@ -1,4 +1,10 @@
 router:
+  proxy:
+    presets:
+      envoy:
+        configMap:
+          name: infx-agg-envoy
+
   extraServicePorts:
     - name: http
       port: 80
