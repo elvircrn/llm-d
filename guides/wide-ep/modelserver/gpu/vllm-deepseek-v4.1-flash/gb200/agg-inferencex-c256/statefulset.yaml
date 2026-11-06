@@ -17,7 +17,7 @@ spec:
         llm-d.ai/model: DeepSeek-V4.1-Flash
         llm-d.ai/role: aggregate
     spec:
-      serviceAccountName: deepseek-v4.1-flash
+      serviceAccountName: dsv41-inferencex-agg
       resourceClaims:
         - name: compute-domain-channel
           resourceClaimTemplateName: llm-d-dev-claim
