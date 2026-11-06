@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dsv41-inferencex-agg
+spec:
+  selector:
+    llm-d.ai/inferenceServing: "true"
+    llm-d.ai/model: DeepSeek-V4.1-Flash
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+    - name: rank0
+      port: 8000
+      targetPort: 8000
