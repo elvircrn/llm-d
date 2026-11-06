@@ -5,3 +5,32 @@ resources:
   - render.yaml
 components:
   - ../components/offloading-tiered
+patches:
+  - patch: |-
+      apiVersion: leaderworkerset.x-k8s.io/v1
+      kind: LeaderWorkerSet
+      metadata:
+        name: wide-ep-dsv41-flash-prefill
+      spec:
+        leaderWorkerTemplate:
+          workerTemplate:
+            spec:
+              containers:
+                - name: vllm
+                  env:
+                    - name: VLLM_EXTRA_ARGS
+                      value: --max-num-batched-tokens 32768 --long-prefill-token-threshold 8192 --enable-ep-weight-filter
+  - patch: |-
+      apiVersion: leaderworkerset.x-k8s.io/v1
+      kind: LeaderWorkerSet
+      metadata:
+        name: wide-ep-dsv41-flash-decode
+      spec:
+        leaderWorkerTemplate:
+          workerTemplate:
+            spec:
+              containers:
+                - name: vllm
+                  env:
+                    - name: VLLM_EXTRA_ARGS
+                      value: --disable-prefix-caching
