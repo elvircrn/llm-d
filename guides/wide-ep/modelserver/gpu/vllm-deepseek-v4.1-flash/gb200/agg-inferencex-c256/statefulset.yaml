@@ -58,6 +58,7 @@ spec:
                 --served-model-name deepseek-ai/DeepSeek-V4.1-Flash \
                 --host 0.0.0.0 \
                 --port 8000 \
+                --device-ids 0,1,2,3 \
                 --tensor-parallel-size 1 \
                 --data-parallel-size 4 \
                 --enable-expert-parallel \
