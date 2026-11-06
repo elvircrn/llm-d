@@ -24,6 +24,9 @@ spec:
           llm-d.ai/role: prefill
       spec:
         serviceAccountName: deepseek-v4.1-flash
+        resourceClaims:
+          - name: compute-domain-channel
+            resourceClaimTemplateName: llm-d-dev-claim
         volumes:
           - name: dshm
             emptyDir:
@@ -150,6 +153,7 @@ spec:
                   --kernel-config '{"moe_backend":"deep_gemm_mega_moe","enable_flashinfer_autotune":true}' \
                   --attention-config '{"backend":"FLASHMLA_MEGA_ATTN_DSV41","indexer_kv_dtype":"mxfp4","indexer_sparse_logits":true}' \
                   --tokenizer-mode deepseek_v41 \
+                  --renderer-num-workers 4 \
                   --reasoning-parser deepseek_v41 \
                   --tool-call-parser deepseek_v41 \
                   --enable-auto-tool-choice \
@@ -157,6 +161,7 @@ spec:
                   --max-model-len 1048576 \
                   --max-num-batched-tokens 8192 \
                   --gpu-memory-utilization 0.90 \
+                  --enable-cumem-allocator \
                   --enable-prefix-caching \
                   --enable-chunked-prefill \
                   --enable-prompt-tokens-details \
@@ -297,6 +302,8 @@ spec:
               timeoutSeconds: 5
               failureThreshold: 3
             resources:
+              claims:
+                - name: compute-domain-channel
               limits:
                 cpu: 32
                 ephemeral-storage: 256Gi
