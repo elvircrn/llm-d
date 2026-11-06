@@ -149,7 +149,7 @@ spec:
                   --data-parallel-rpc-port 5555 \
                   --data-parallel-start-rank $START_RANK \
                   --enable-expert-parallel \
-                  --disable-ep-weight-filter \
+                  --enable-ep-weight-filter \
                   --kernel-config '{"moe_backend":"deep_gemm_mega_moe","enable_flashinfer_autotune":true,"sparse_indexer_topk_backend":"deep_select"}' \
                   --attention-config '{"backend":"FLASHMLA_MEGA_ATTN_DSV41","indexer_kv_dtype":"mxfp4","indexer_sparse_logits":true}' \
                   --tokenizer-mode deepseek_v41 \
