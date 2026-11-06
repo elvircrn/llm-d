@@ -26,7 +26,7 @@ patches:
                     - name: OFFLOADING_MODE
                       value: "tiered"
                     - name: KV_OFFLOAD_CPU_BYTES
-                      value: "137438953472"
+                      value: "68719476736"
                   resources:
                     limits:
                       memory: 896Gi
