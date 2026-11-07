@@ -7,3 +7,13 @@ labels:
   - pairs:
       llm-d.ai/variant: dspark4-batch32k-rustfe
     includeSelectors: true
+patches:
+  - target:
+      kind: StatefulSet
+      name: dsv41-inferencex-agg-ds4-b32
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: VLLM_USE_RUST_FRONTEND
+          value: "1"
