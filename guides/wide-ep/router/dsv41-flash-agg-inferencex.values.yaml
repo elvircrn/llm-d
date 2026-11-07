@@ -24,7 +24,7 @@ router:
         - type: prefix-cache-affinity-filter
           parameters:
             affinityThreshold: 0.80
-            maxTTFTPenaltyMs: 0
+            maxTTFTPenaltyMs: 5000
             peakPrefillThroughput: 46000
         - type: token-load-scorer
         schedulingProfiles:
