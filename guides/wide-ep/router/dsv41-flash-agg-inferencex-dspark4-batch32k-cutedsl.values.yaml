@@ -3,7 +3,7 @@ router:
     presets:
       envoy:
         configMap:
-          name: infx-agg-ds4b32-cute-envoy
+          name: infx-agg-ds4b32-cute2-envoy
 
   extraServicePorts:
     - name: http
