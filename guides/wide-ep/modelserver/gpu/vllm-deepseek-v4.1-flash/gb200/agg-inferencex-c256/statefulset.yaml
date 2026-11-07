@@ -105,6 +105,8 @@ spec:
               value: "600000"
             - name: VLLM_LOG_STATS_INTERVAL
               value: "1"
+            - name: VLLM_HTTP_TIMEOUT_KEEP_ALIVE
+              value: "600"
             - name: VLLM_SERVER_DEV_MODE
               value: "1"
             - name: VLLM_ALLREDUCE_USE_SYMM_MEM
