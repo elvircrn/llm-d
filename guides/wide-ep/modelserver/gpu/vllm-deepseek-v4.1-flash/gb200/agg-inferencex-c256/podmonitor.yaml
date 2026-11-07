@@ -8,6 +8,15 @@ spec:
       llm-d.ai/inferenceServing: "true"
       llm-d.ai/model: DeepSeek-V4.1-Flash
   podMetricsEndpoints:
-    - port: frontend
+    - port: rank0
+      path: /metrics
+      interval: 5s
+    - port: rank1
+      path: /metrics
+      interval: 5s
+    - port: rank2
+      path: /metrics
+      interval: 5s
+    - port: rank3
       path: /metrics
       interval: 5s
