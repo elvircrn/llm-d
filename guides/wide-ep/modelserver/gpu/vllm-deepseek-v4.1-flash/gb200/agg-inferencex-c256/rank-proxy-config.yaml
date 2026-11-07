@@ -26,9 +26,9 @@ data:
                                 cluster: vllm
                                 timeout: 86400s
                                 idle_timeout: 86400s
-                                request_headers_to_add:
-                                  - header: {key: x-data-parallel-rank, value: "0"}
-                                    append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                              request_headers_to_add:
+                                - header: {key: x-data-parallel-rank, value: "0"}
+                                  append_action: OVERWRITE_IF_EXISTS_OR_ADD
                     http_filters:
                       - name: envoy.filters.http.router
                         typed_config:
@@ -53,9 +53,9 @@ data:
                                 cluster: vllm
                                 timeout: 86400s
                                 idle_timeout: 86400s
-                                request_headers_to_add:
-                                  - header: {key: x-data-parallel-rank, value: "1"}
-                                    append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                              request_headers_to_add:
+                                - header: {key: x-data-parallel-rank, value: "1"}
+                                  append_action: OVERWRITE_IF_EXISTS_OR_ADD
                     http_filters:
                       - name: envoy.filters.http.router
                         typed_config:
@@ -80,9 +80,9 @@ data:
                                 cluster: vllm
                                 timeout: 86400s
                                 idle_timeout: 86400s
-                                request_headers_to_add:
-                                  - header: {key: x-data-parallel-rank, value: "2"}
-                                    append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                              request_headers_to_add:
+                                - header: {key: x-data-parallel-rank, value: "2"}
+                                  append_action: OVERWRITE_IF_EXISTS_OR_ADD
                     http_filters:
                       - name: envoy.filters.http.router
                         typed_config:
@@ -107,9 +107,9 @@ data:
                                 cluster: vllm
                                 timeout: 86400s
                                 idle_timeout: 86400s
-                                request_headers_to_add:
-                                  - header: {key: x-data-parallel-rank, value: "3"}
-                                    append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                              request_headers_to_add:
+                                - header: {key: x-data-parallel-rank, value: "3"}
+                                  append_action: OVERWRITE_IF_EXISTS_OR_ADD
                     http_filters:
                       - name: envoy.filters.http.router
                         typed_config:
