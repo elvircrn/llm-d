@@ -1,0 +1,45 @@
+router:
+  proxy:
+    presets:
+      envoy:
+        configMap:
+          name: infx-agg-b32-envoy
+
+  extraServicePorts:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 8081
+
+  epp:
+    replicas: 1
+    pluginsConfigFile: "dsv41-flash-agg-inferencex-batch32k-config.yaml"
+    pluginsCustomConfig:
+      dsv41-flash-agg-inferencex-batch32k-config.yaml: |
+        apiVersion: llm-d.ai/v1alpha1
+        kind: EndpointPickerConfig
+        plugins:
+        - type: approx-prefix-cache-producer
+        - type: inflight-load-producer
+        - type: prefix-cache-affinity-filter
+          parameters:
+            affinityThreshold: 0.80
+            maxTTFTPenaltyMs: 0
+            peakPrefillThroughput: 46000
+        - type: token-load-scorer
+        schedulingProfiles:
+        - name: default
+          plugins:
+          - pluginRef: prefix-cache-affinity-filter
+          - pluginRef: token-load-scorer
+
+  modelServers:
+    targetPorts:
+      - number: 8000
+      - number: 8001
+      - number: 8002
+      - number: 8003
+    matchLabels:
+      llm-d.ai/inferenceServing: "true"
+      llm-d.ai/model: DeepSeek-V4.1-Flash
+      nm-hard.io/variant: batch32k
