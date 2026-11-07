@@ -9,13 +9,11 @@ spec:
     matchLabels:
       llm-d.ai/inferenceServing: "true"
       llm-d.ai/model: DeepSeek-V4.1-Flash
-      llm-d.ai/role: aggregate
   template:
     metadata:
       labels:
         llm-d.ai/inferenceServing: "true"
         llm-d.ai/model: DeepSeek-V4.1-Flash
-        llm-d.ai/role: aggregate
     spec:
       serviceAccountName: dsv41-inferencex-agg
       resourceClaims:
@@ -32,7 +30,7 @@ spec:
       containers:
         - name: vllm
           image: docker.io/vllm/vllm-openai:nightly
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           securityContext:
             capabilities:
               add:
