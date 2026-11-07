@@ -13,3 +13,12 @@ spec:
     - name: rank0
       port: 8000
       targetPort: 8000
+    - name: rank1
+      port: 8001
+      targetPort: 8001
+    - name: rank2
+      port: 8002
+      targetPort: 8002
+    - name: rank3
+      port: 8003
+      targetPort: 8003

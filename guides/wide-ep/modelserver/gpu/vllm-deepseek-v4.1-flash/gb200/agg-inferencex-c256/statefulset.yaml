@@ -59,6 +59,7 @@ spec:
                 --device-ids 0,1,2,3 \
                 --tensor-parallel-size 1 \
                 --data-parallel-size 4 \
+                --data-parallel-multi-port-external-lb \
                 --enable-expert-parallel \
                 --enable-cumem-allocator \
                 --enable-ep-weight-filter \
@@ -123,6 +124,15 @@ spec:
           ports:
             - containerPort: 8000
               name: rank0
+              protocol: TCP
+            - containerPort: 8001
+              name: rank1
+              protocol: TCP
+            - containerPort: 8002
+              name: rank2
+              protocol: TCP
+            - containerPort: 8003
+              name: rank3
               protocol: TCP
           startupProbe:
             httpGet:

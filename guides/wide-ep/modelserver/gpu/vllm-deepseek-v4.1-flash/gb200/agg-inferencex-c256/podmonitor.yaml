@@ -11,3 +11,12 @@ spec:
     - port: rank0
       path: /metrics
       interval: 5s
+    - port: rank1
+      path: /metrics
+      interval: 5s
+    - port: rank2
+      path: /metrics
+      interval: 5s
+    - port: rank3
+      path: /metrics
+      interval: 5s
