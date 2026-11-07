@@ -23,7 +23,7 @@ router:
         - type: inflight-load-producer
         - type: prefix-cache-affinity-filter
           parameters:
-            affinityThreshold: 0.50
+            affinityThreshold: 0.80
             maxTTFTPenaltyMs: 0
             peakPrefillThroughput: 46000
         - type: token-load-scorer
