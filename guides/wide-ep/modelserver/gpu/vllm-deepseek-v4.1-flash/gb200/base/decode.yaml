@@ -295,7 +295,7 @@ spec:
                 port: supervisor
               periodSeconds: 1
               timeoutSeconds: 5
-              failureThreshold: 3600
+              failureThreshold: 21600
             livenessProbe:
               httpGet:
                 path: /health
