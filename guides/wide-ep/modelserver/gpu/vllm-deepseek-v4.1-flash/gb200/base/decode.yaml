@@ -158,6 +158,7 @@ spec:
                   --data-parallel-address ${LWS_LEADER_ADDRESS} \
                   --data-parallel-rpc-port 5555 \
                   --data-parallel-start-rank $START_RANK \
+                  --distributed-timeout-seconds 21600 \
                   --enable-expert-parallel \
                   --enable-eplb \
                   --eplb-config '{"communicator":"symm_mem","num_redundant_experts":32,"window_size":1000,"step_interval":3000,"use_async":true}' \
