@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../dsv41-nvfp4-megamoe
+nameSuffix: -long
+labels:
+  - pairs:
+      llm-d.ai/variant: dspark4-batch40k-nvfp4-long
+    includeSelectors: true
