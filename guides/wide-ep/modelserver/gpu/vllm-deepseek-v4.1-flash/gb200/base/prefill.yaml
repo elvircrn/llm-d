@@ -24,6 +24,18 @@ spec:
           llm-d.ai/role: prefill
       spec:
         serviceAccountName: deepseek-v4.1-flash
+        # The NVLink fabric ends at the rack boundary; unpinned scheduling
+        # split prefill and decode across racks and NIXL fell back to TCP.
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: node-role.kubernetes.io/hpc-rack-1
+                      operator: Exists
+                    - key: nvidia.com/gpu.product
+                      operator: In
+                      values: ["NVIDIA-GB200"]
         resourceClaims:
           - name: compute-domain-channel
             resourceClaimTemplateName: llm-d-dev-claim

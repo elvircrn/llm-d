@@ -26,6 +26,18 @@ spec:
           llm-d.ai/role: decode
       spec:
         serviceAccountName: deepseek-v4.1-flash
+        # The NVLink fabric ends at the rack boundary; unpinned scheduling
+        # split prefill and decode across racks and NIXL fell back to TCP.
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: node-role.kubernetes.io/hpc-rack-1
+                      operator: Exists
+                    - key: nvidia.com/gpu.product
+                      operator: In
+                      values: ["NVIDIA-GB200"]
         # The driver refuses CU_MEM_HANDLE_TYPE_FABRIC allocations without
         # compute-domain membership; NCCL NVLS over the tray's NVLink fabric
         # needs that grant.
