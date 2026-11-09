@@ -1,0 +1,25 @@
+# pd1pd8 tiered shape renamed for side-by-side campaigns: nameSuffix keeps
+# every object distinct from a live campaign of the base shape in the same
+# namespace, and the KV_OFFLOAD_CPU_BYTES patch restores the pre-01fa89ed
+# 64GiB-per-rank tier (the NUMA pinning the shrink dodged is gone since
+# 8620ce9f).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+nameSuffix: -par
+resources:
+  - ../pd1pd8-offload-tiered
+patches:
+  - patch: |-
+      apiVersion: leaderworkerset.x-k8s.io/v1
+      kind: LeaderWorkerSet
+      metadata:
+        name: wide-ep-dsv41-flash-prefill
+      spec:
+        leaderWorkerTemplate:
+          workerTemplate:
+            spec:
+              containers:
+                - name: vllm
+                  env:
+                    - name: KV_OFFLOAD_CPU_BYTES
+                      value: "68719476736"
