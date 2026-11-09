@@ -1,7 +1,8 @@
 # pd1pd1 with tiered KV offloading: the base one-prefill one-decode shape
 # on two 4-GPU trays, decode dp4/ep4. The KV_OFFLOAD_CPU_BYTES patch
 # restores the pre-01fa89ed 64GiB-per-rank tier; the NUMA pinning that the
-# shrink dodged is gone since 8620ce9f.
+# shrink dodged is gone since 8620ce9f. Decode keeps prefix caching on so
+# the NIXL pull trims each transfer to the blocks decode lacks.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -26,17 +27,3 @@ patches:
                       value: --max-num-batched-tokens 16384 --enable-ep-weight-filter
                     - name: KV_OFFLOAD_CPU_BYTES
                       value: "68719476736"
-  - patch: |-
-      apiVersion: leaderworkerset.x-k8s.io/v1
-      kind: LeaderWorkerSet
-      metadata:
-        name: wide-ep-dsv41-flash-decode
-      spec:
-        leaderWorkerTemplate:
-          workerTemplate:
-            spec:
-              containers:
-                - name: vllm
-                  env:
-                    - name: VLLM_EXTRA_ARGS
-                      value: --disable-prefix-caching
