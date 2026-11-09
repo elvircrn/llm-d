@@ -9,6 +9,29 @@ nameSuffix: -par
 resources:
   - ../pd1pd8-offload-tiered
 patches:
+  # kustomize's nameSuffix renames the base ServiceAccount but not the
+  # serviceAccountName reference inside a LeaderWorkerSet template, so the
+  # reference must point at the suffixed name explicitly.
+  - patch: |-
+      apiVersion: leaderworkerset.x-k8s.io/v1
+      kind: LeaderWorkerSet
+      metadata:
+        name: wide-ep-dsv41-flash-prefill
+      spec:
+        leaderWorkerTemplate:
+          workerTemplate:
+            spec:
+              serviceAccountName: deepseek-v4.1-flash-par
+  - patch: |-
+      apiVersion: leaderworkerset.x-k8s.io/v1
+      kind: LeaderWorkerSet
+      metadata:
+        name: wide-ep-dsv41-flash-decode
+      spec:
+        leaderWorkerTemplate:
+          workerTemplate:
+            spec:
+              serviceAccountName: deepseek-v4.1-flash-par
   - patch: |-
       apiVersion: leaderworkerset.x-k8s.io/v1
       kind: LeaderWorkerSet
