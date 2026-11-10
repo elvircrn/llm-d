@@ -1,0 +1,7 @@
+resources:
+  - ../base
+nameSuffix: -backend-flash-attn
+labels:
+  - pairs:
+      app: vllm-qwen3-4b-backend-flash-attn
+    includeSelectors: true

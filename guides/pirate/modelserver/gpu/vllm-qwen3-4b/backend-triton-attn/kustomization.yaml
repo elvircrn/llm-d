@@ -1,0 +1,7 @@
+resources:
+  - ../base
+nameSuffix: -backend-triton-attn
+labels:
+  - pairs:
+      app: vllm-qwen3-4b-backend-triton-attn
+    includeSelectors: true
