@@ -1,0 +1,30 @@
+# pd2pd1 with tiered KV offloading: two prefill groups and a single decode
+# node. Each prefill group is one pod on its own 4-GPU tray running an
+# independent TP1 x DP4 + EP4 engine, so the router balances prefill across
+# two engines, while decode stays one dp4/ep4 engine. The
+# KV_OFFLOAD_CPU_BYTES patch restores the pre-01fa89ed 64GiB-per-rank tier.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+  - render.yaml
+components:
+  - ../components/offloading-tiered
+patches:
+  - path: prefill-replicas.yaml
+  - patch: |-
+      apiVersion: leaderworkerset.x-k8s.io/v1
+      kind: LeaderWorkerSet
+      metadata:
+        name: wide-ep-dsv41-flash-prefill
+      spec:
+        leaderWorkerTemplate:
+          workerTemplate:
+            spec:
+              containers:
+                - name: vllm
+                  env:
+                    - name: VLLM_EXTRA_ARGS
+                      value: --max-num-batched-tokens 16384 --enable-ep-weight-filter
+                    - name: KV_OFFLOAD_CPU_BYTES
+                      value: "68719476736"

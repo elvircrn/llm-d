@@ -1,0 +1,27 @@
+# pd1pd2 with tiered KV offloading: one prefill pod and the decode engine
+# spanning two pods, one dp8/ep8 engine across both 4-GPU trays. The
+# KV_OFFLOAD_CPU_BYTES patch restores the pre-01fa89ed 64GiB-per-rank tier.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../pd1pd2
+  - render.yaml
+components:
+  - ../components/offloading-tiered
+patches:
+  - patch: |-
+      apiVersion: leaderworkerset.x-k8s.io/v1
+      kind: LeaderWorkerSet
+      metadata:
+        name: wide-ep-dsv41-flash-prefill
+      spec:
+        leaderWorkerTemplate:
+          workerTemplate:
+            spec:
+              containers:
+                - name: vllm
+                  env:
+                    - name: VLLM_EXTRA_ARGS
+                      value: --max-num-batched-tokens 16384 --enable-ep-weight-filter
+                    - name: KV_OFFLOAD_CPU_BYTES
+                      value: "68719476736"
