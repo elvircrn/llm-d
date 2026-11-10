@@ -255,12 +255,14 @@ spec:
                 value: enabled
               # Pods on this cluster get no /dev/infiniband; once CUDA is up,
               # UCX's default rc_verbs probe kills ucp worker creation and
-              # NIXL dies with NIXL_ERR_BACKEND. The NVLink fabric is
-              # rack-local, so a prefill/decode pair split across racks has
-              # no usable transport: fail the transfer at connect instead of
-              # silently falling back to TCP.
+              # NIXL dies with NIXL_ERR_BACKEND. tcp must stay in the list:
+              # nixl_cu13's backend needs an active-message transport, and
+              # cuda_copy/cuda_ipc alone leave UCX with none (NIXL_ERR_BACKEND
+              # on every worker at connector init). The rack-1 affinity above
+              # is what keeps pairs on one NVLink fabric; cross-rack
+              # protection lives there, not in the transport list.
               - name: UCX_TLS
-                value: cuda_copy,cuda_ipc
+                value: cuda_copy,cuda_ipc,tcp
               - name: UCX_CUDA_IPC_ENABLE_MNNVL
                 value: "1"
               - name: GLOO_SOCKET_IFNAME
