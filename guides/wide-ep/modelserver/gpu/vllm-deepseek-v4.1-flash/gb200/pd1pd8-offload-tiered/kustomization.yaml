@@ -20,17 +20,3 @@ patches:
                   env:
                     - name: VLLM_EXTRA_ARGS
                       value: --max-num-batched-tokens 16384 --enable-ep-weight-filter
-  - patch: |-
-      apiVersion: leaderworkerset.x-k8s.io/v1
-      kind: LeaderWorkerSet
-      metadata:
-        name: wide-ep-dsv41-flash-decode
-      spec:
-        leaderWorkerTemplate:
-          workerTemplate:
-            spec:
-              containers:
-                - name: vllm
-                  env:
-                    - name: VLLM_EXTRA_ARGS
-                      value: --disable-prefix-caching
