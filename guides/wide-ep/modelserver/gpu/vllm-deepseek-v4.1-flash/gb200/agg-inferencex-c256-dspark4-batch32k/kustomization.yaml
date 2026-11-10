@@ -48,7 +48,6 @@ patches:
             --max-model-len 1048576 \
             --max-num-batched-tokens 32768 \
             --max-num-seqs 128 \
-            --numa-bind \
             --prefill-schedule-interval 96 \
             --reasoning-parser deepseek_v41 \
             --tokenizer-mode deepseek_v41 \
