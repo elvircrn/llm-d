@@ -1,0 +1,27 @@
+# pd1pd8 tiered -par shape pinned to rack 2: the same objects as
+# pd1pd8-offload-tiered-par with the node affinity flipped to hpc-rack-2,
+# for runs that need the second NVL72 domain because rack 1 is fully
+# held by other tenants.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../pd1pd8-offload-tiered-par
+patches:
+  - target:
+      group: leaderworkerset.x-k8s.io
+      version: v1
+      kind: LeaderWorkerSet
+      name: wide-ep-dsv41-flash-decode-par
+    patch: |-
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/affinity/nodeAffinity/requiredDuringSchedulingIgnoredDuringExecution/nodeSelectorTerms/0/matchExpressions/0/key
+        value: node-role.kubernetes.io/hpc-rack-2
+  - target:
+      group: leaderworkerset.x-k8s.io
+      version: v1
+      kind: LeaderWorkerSet
+      name: wide-ep-dsv41-flash-prefill-par
+    patch: |-
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/affinity/nodeAffinity/requiredDuringSchedulingIgnoredDuringExecution/nodeSelectorTerms/0/matchExpressions/0/key
+        value: node-role.kubernetes.io/hpc-rack-2
