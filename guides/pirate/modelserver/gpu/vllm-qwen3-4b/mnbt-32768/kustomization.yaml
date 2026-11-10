@@ -1,0 +1,13 @@
+# One arm of the --max-num-batched-tokens ablation: the shared base
+# deployment under a per-arm name, so concurrent campaigns can deploy the
+# same model side by side in one namespace. The knob itself comes from the
+# campaign recipe's vllm_cli_args.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+nameSuffix: -mnbt-32768
+labels:
+  - pairs:
+      app: vllm-qwen3-4b-mnbt-32768
+    includeSelectors: true
