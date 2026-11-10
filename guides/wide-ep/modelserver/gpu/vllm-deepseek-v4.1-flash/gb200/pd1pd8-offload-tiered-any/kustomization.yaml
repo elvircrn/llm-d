@@ -1,0 +1,24 @@
+# pd1pd8 tiered -par shape with the rack pin dropped: the same objects as
+# pd1pd8-offload-tiered-par with the hpc-rack-1 node-role match expression
+# removed, for runs that may land on either NVL72 domain when rack 1 is full.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../pd1pd8-offload-tiered-par
+patches:
+  - target:
+      group: leaderworkerset.x-k8s.io
+      version: v1
+      kind: LeaderWorkerSet
+      name: wide-ep-dsv41-flash-decode-par
+    patch: |-
+      - op: remove
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/affinity/nodeAffinity/requiredDuringSchedulingIgnoredDuringExecution/nodeSelectorTerms/0/matchExpressions/0
+  - target:
+      group: leaderworkerset.x-k8s.io
+      version: v1
+      kind: LeaderWorkerSet
+      name: wide-ep-dsv41-flash-prefill-par
+    patch: |-
+      - op: remove
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/affinity/nodeAffinity/requiredDuringSchedulingIgnoredDuringExecution/nodeSelectorTerms/0/matchExpressions/0
