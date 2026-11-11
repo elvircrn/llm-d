@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dsv41-flash-render
+  labels:
+    llm-d.ai/model: DeepSeek-V4.1-Flash
+spec:
+  selector:
+    llm-d.ai/inferenceServing: "true"
+    llm-d.ai/model: DeepSeek-V4.1-Flash
+    llm-d.ai/role: prefill
+  ports:
+    - name: render-http
+      port: 8000
+      targetPort: 8000
