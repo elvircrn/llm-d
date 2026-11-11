@@ -1,0 +1,29 @@
+# Prefill-saturation probe of the wide aggregate: the same LWS and serving
+# config under the -satp-r1 variant label, inheriting rack-1 affinity from
+# the base overlay, so only this probe's router discovers these pods.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../agg-inferencex-c256-dspark4-batch40k-wide
+nameSuffix: -satp-r1
+patches:
+  - target:
+      kind: LeaderWorkerSet
+      name: wide-ep-dsv41-flash-agg
+    patch: |-
+      - op: replace
+        path: /metadata/labels/llm-d.ai~1variant
+        value: dspark4-batch40k-wide-satp-r1
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/metadata/labels/llm-d.ai~1variant
+        value: dspark4-batch40k-wide-satp-r1
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/serviceAccountName
+        value: deepseek-v4.1-flash-satp-r1
+  - target:
+      kind: PodMonitor
+      name: wide-ep-dsv41-flash-agg
+    patch: |-
+      - op: replace
+        path: /spec/selector/matchLabels/llm-d.ai~1variant
+        value: dspark4-batch40k-wide-satp-r1
