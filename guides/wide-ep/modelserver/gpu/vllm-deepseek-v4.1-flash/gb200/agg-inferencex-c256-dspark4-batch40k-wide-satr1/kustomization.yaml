@@ -1,0 +1,30 @@
+# Rack-1 twin of the -sat decode-only saturation probe: the same wide
+# aggregate LWS and serving config under the -satr1 variant label and name
+# suffix, inheriting rack-1 affinity from the base overlay, so it can wait
+# for rack-1 trays while the -sat twin waits for rack-2 ones.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../agg-inferencex-c256-dspark4-batch40k-wide
+nameSuffix: -satr1
+patches:
+  - target:
+      kind: LeaderWorkerSet
+      name: wide-ep-dsv41-flash-agg
+    patch: |-
+      - op: replace
+        path: /metadata/labels/llm-d.ai~1variant
+        value: dspark4-batch40k-wide-satr1
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/metadata/labels/llm-d.ai~1variant
+        value: dspark4-batch40k-wide-satr1
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/serviceAccountName
+        value: deepseek-v4.1-flash-satr1
+  - target:
+      kind: PodMonitor
+      name: wide-ep-dsv41-flash-agg
+    patch: |-
+      - op: replace
+        path: /spec/selector/matchLabels/llm-d.ai~1variant
+        value: dspark4-batch40k-wide-satr1
