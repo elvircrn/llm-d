@@ -1,0 +1,32 @@
+# Prefill-saturation probe of the wide aggregate, pinned to rack 2: rack 1
+# is fully held by other tenants, and rack 2 carries the same per-rack
+# NVLink fabric, so the two engine pods stay on one fabric.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../agg-inferencex-c256-dspark4-batch40k-wide
+nameSuffix: -satp-r2
+patches:
+  - target:
+      kind: LeaderWorkerSet
+      name: wide-ep-dsv41-flash-agg
+    patch: |-
+      - op: replace
+        path: /metadata/labels/llm-d.ai~1variant
+        value: dspark4-batch40k-wide-satp-r2
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/metadata/labels/llm-d.ai~1variant
+        value: dspark4-batch40k-wide-satp-r2
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/serviceAccountName
+        value: deepseek-v4.1-flash-satp-r2
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/affinity/nodeAffinity/requiredDuringSchedulingIgnoredDuringExecution/nodeSelectorTerms/0/matchExpressions/0/key
+        value: node-role.kubernetes.io/hpc-rack-2
+  - target:
+      kind: PodMonitor
+      name: wide-ep-dsv41-flash-agg
+    patch: |-
+      - op: replace
+        path: /spec/selector/matchLabels/llm-d.ai~1variant
+        value: dspark4-batch40k-wide-satp-r2
