@@ -20,6 +20,12 @@ patches:
       - op: replace
         path: /spec/leaderWorkerTemplate/workerTemplate/spec/serviceAccountName
         value: deepseek-v4.1-flash-satp-r1
+      # The engine's 7200 s ready timeout expires while the worker waits for
+      # a second free tray; the leader must survive the campaign's whole
+      # 21600 s rollout window or the crash-loop guard aborts the campaign.
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/containers/0/env/5/value
+        value: '20400'
   - target:
       kind: PodMonitor
       name: wide-ep-dsv41-flash-agg
