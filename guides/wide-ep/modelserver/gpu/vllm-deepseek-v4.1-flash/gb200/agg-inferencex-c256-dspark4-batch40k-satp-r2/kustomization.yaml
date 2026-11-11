@@ -1,0 +1,31 @@
+# Single-node prefill saturation probe of the aggregate dp4/ep4 engine,
+# pinned to rack 2: the same StatefulSet chain as batch40k under the
+# -satp-r2 variant label and name suffix. Rack 2 rarely offers two trays
+# at once, so the wide two-pod shape cannot schedule there; one pod can.
+# The affinity patch pins the pod to rack 2's NVL72 domain.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../agg-inferencex-c256-dspark4-batch40k
+nameSuffix: -satp-r2
+labels:
+  - pairs:
+      llm-d.ai/variant: dspark4-batch40k-satp-r2
+    includeSelectors: true
+patches:
+  - target:
+      kind: StatefulSet
+      name: dsv41-inferencex-agg-ds4-b32-b40
+    patch: |-
+      - op: add
+        path: /spec/template/spec/affinity
+        value:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: node-role.kubernetes.io/hpc-rack-2
+                      operator: Exists
+                    - key: nvidia.com/gpu.product
+                      operator: In
+                      values: ["NVIDIA-GB200"]
