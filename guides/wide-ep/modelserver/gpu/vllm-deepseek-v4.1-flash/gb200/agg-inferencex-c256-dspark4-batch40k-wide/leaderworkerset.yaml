@@ -1,0 +1,229 @@
+apiVersion: leaderworkerset.x-k8s.io/v1
+kind: LeaderWorkerSet
+metadata:
+  name: wide-ep-dsv41-flash-agg
+  labels:
+    llm-d.ai/inferenceServing: "true"
+    llm-d.ai/model: DeepSeek-V4.1-Flash
+    llm-d.ai/variant: dspark4-batch40k-wide
+spec:
+  replicas: 1
+  leaderWorkerTemplate:
+    # One group of leader plus worker gives LWS_GROUP_SIZE 2; the launch
+    # script derives data-parallel-size 8, per-pod start ranks, and the DP
+    # rpc port from it, exactly like the decode span in base/decode.yaml.
+    size: 2
+    workerTemplate:
+      metadata:
+        labels:
+          llm-d.ai/inferenceServing: "true"
+          llm-d.ai/model: DeepSeek-V4.1-Flash
+          llm-d.ai/variant: dspark4-batch40k-wide
+      spec:
+        serviceAccountName: deepseek-v4.1-flash
+        # The NVLink fabric ends at the rack boundary; unpinned scheduling
+        # would split the two engine pods across racks and the EP8
+        # all-to-all would fall off the fabric.
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: node-role.kubernetes.io/hpc-rack-1
+                      operator: Exists
+                    - key: nvidia.com/gpu.product
+                      operator: In
+                      values: ["NVIDIA-GB200"]
+        # The driver refuses CU_MEM_HANDLE_TYPE_FABRIC allocations without
+        # compute-domain membership; NCCL NVLS over the tray's NVLink fabric
+        # needs that grant.
+        resourceClaims:
+          - name: compute-domain-channel
+            resourceClaimTemplateName: llm-d-dev-claim
+        volumes:
+          - name: dshm
+            emptyDir:
+              medium: Memory
+              # The engram tables are CPU-resident in this shape; /dev/shm
+              # only serves NCCL and IPC.
+              sizeLimit: 256Gi
+          - name: lustre
+            persistentVolumeClaim:
+              claimName: lustre-pvc-vllm
+        containers:
+          - name: vllm
+            image: docker.io/vllm/vllm-openai:nightly
+            imagePullPolicy: IfNotPresent
+            securityContext:
+              capabilities:
+                add:
+                  - IPC_LOCK
+                  - SYS_RAWIO
+              runAsGroup: 0
+              runAsUser: 0
+            command:
+              - /bin/bash
+              - -c
+            args:
+              - |-
+                find /dev/shm -type f -delete
+
+                START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
+
+                # First boot JIT-compiles Triton, DeepGEMM, FlashInfer,
+                # TileLang and inductor kernels; the caches persist on the
+                # lustre volume, per-pod prefixed so concurrent pods never
+                # share a dir.
+                export TRITON_CACHE_DIR="/mnt/lustre/jit/$HOSTNAME/triton"
+                export DG_JIT_CACHE_DIR="/mnt/lustre/jit/$HOSTNAME/deep_gemm"
+                export FLASHINFER_CACHE_DIR="/mnt/lustre/jit/$HOSTNAME/flashinfer"
+                export TILELANG_CACHE_DIR="/mnt/lustre/jit/$HOSTNAME/tilelang"
+                export TORCHINDUCTOR_CACHE_DIR="/mnt/lustre/jit/$HOSTNAME/inductor"
+                export VLLM_CACHE_ROOT="/mnt/lustre/jit/$HOSTNAME/vllm"
+
+                exec vllm serve deepseek-ai/DeepSeek-V4.1-Flash \
+                  --revision 5254448103b6254fc646dacbca1cbbf20e9216c1 \
+                  --tokenizer-revision 5254448103b6254fc646dacbca1cbbf20e9216c1 \
+                  --served-model-name deepseek-ai/DeepSeek-V4.1-Flash \
+                  --host 0.0.0.0 \
+                  --port 8000 \
+                  --device-ids 0,1,2,3 \
+                  --tensor-parallel-size 1 \
+                  --data-parallel-size $((LWS_GROUP_SIZE * DP_SIZE_LOCAL)) \
+                  --data-parallel-size-local $DP_SIZE_LOCAL \
+                  --data-parallel-address ${LWS_LEADER_ADDRESS} \
+                  --data-parallel-rpc-port 5555 \
+                  --data-parallel-start-rank $START_RANK \
+                  --data-parallel-multi-port-external-lb \
+                  --data-parallel-supervisor-port 8004 \
+                  --distributed-timeout-seconds 21600 \
+                  --cpu-distributed-timeout-seconds 21600 \
+                  --enable-expert-parallel \
+                  --enable-cumem-allocator \
+                  --enable-ep-weight-filter \
+                  --attention-config '{"backend":"FLASHMLA_MEGA_ATTN_DSV41","indexer_kv_dtype":"mxfp4","indexer_sparse_logits":true}' \
+                  --engram-config '{"cpu_offload":true,"embedding_across_dp":true,"use_thp":false}' \
+                  --kernel-config '{"enable_flashinfer_autotune":true,"moe_backend":"deep_gemm_mega_moe","sparse_indexer_topk_backend":"deep_select"}' \
+                  --kv-cache-dtype fp8 \
+                  --kv-cache-memory 30064771072 \
+                  --language-model-only \
+                  --long-prefill-token-threshold 8192 \
+                  --max-cudagraph-capture-size 8190 \
+                  --max-model-len 1048576 \
+                  --max-num-batched-tokens 40960 \
+                  --max-num-seqs 128 \
+                  --prefill-schedule-interval 96 \
+                  --reasoning-parser deepseek_v41 \
+                  --tokenizer-mode deepseek_v41 \
+                  --tool-call-parser deepseek_v41 \
+                  --enable-auto-tool-choice \
+                  --gpu-memory-utilization 0.93 \
+                  --disable-uvicorn-access-log \
+                  --speculative-config '{"method":"dspark","num_speculative_tokens":4,"draft_sample_method":"probabilistic","rejection_sample_method":"block","enable_adaptive_verification":false}' \
+                  ${VLLM_EXTRA_ARGS:-} \
+                  --compilation-config '{"mode":"VLLM_COMPILE","cudagraph_mode":"FULL_AND_PIECEWISE","cudagraph_capture_sizes":[6,12,18,24,30,36,48,60,72,96,120,144,192,240,288,384,480,576,768,1020,1536,2046,3072,4092,6144,8190],"decoder_replay_cudagraph_capture_sizes":[6,12,18,24,30,36,48,60,72,96,120,144,192,240,288,384,480,576,768,1020,1536,2048,2304,2560,2816,3072,3328,3584,3840,4096]}'
+            env:
+              - name: HF_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: hf-secret
+                    key: HF_TOKEN
+              - name: HF_HUB_CACHE
+                value: /mnt/lustre
+              - name: HF_HUB_DISABLE_XET
+                value: "1"
+              - name: DP_SIZE_LOCAL
+                value: "4"
+              - name: VLLM_USE_V2_MODEL_RUNNER
+                value: "1"
+              - name: VLLM_ENGINE_READY_TIMEOUT_S
+                value: "7200"
+              - name: VLLM_RPC_TIMEOUT
+                value: "600000"
+              - name: VLLM_LOG_STATS_INTERVAL
+                value: "1"
+              - name: VLLM_HTTP_TIMEOUT_KEEP_ALIVE
+                value: "600"
+              # Enables POST /reset_prefix_cache, which the benchmark
+              # harness calls on every engine between concurrency levels.
+              - name: VLLM_SERVER_DEV_MODE
+                value: "1"
+              - name: VLLM_ALLREDUCE_USE_SYMM_MEM
+                value: "0"
+              - name: VLLM_RANDOMIZE_DP_DUMMY_INPUTS
+                value: "1"
+              - name: NCCL_CUMEM_ENABLE
+                value: "1"
+              - name: NCCL_MNNVL_ENABLE
+                value: "1"
+              - name: NCCL_NVLS_ENABLE
+                value: "1"
+              - name: PYTORCH_CUDA_ALLOC_CONF
+                value: expandable_segments:True
+              - name: PYTHONUNBUFFERED
+                value: "1"
+              # The DP group and NCCL's out-of-band channel run over the
+              # pod network between the two engine pods; pinning the
+              # interface keeps gloo and NCCL off lo and the unusable ib
+              # devices.
+              - name: GLOO_SOCKET_IFNAME
+                value: eth0
+              - name: NCCL_SOCKET_IFNAME
+                value: eth0
+              - name: NCCL_IB_HCA
+                value: ibp
+            ports:
+              - containerPort: 8000
+                name: rank0
+                protocol: TCP
+              - containerPort: 8001
+                name: rank1
+                protocol: TCP
+              - containerPort: 8002
+                name: rank2
+                protocol: TCP
+              - containerPort: 8003
+                name: rank3
+                protocol: TCP
+              - containerPort: 8004
+                name: supervisor
+                protocol: TCP
+            startupProbe:
+              httpGet:
+                path: /health
+                port: supervisor
+              periodSeconds: 5
+              timeoutSeconds: 5
+              failureThreshold: 1440
+            livenessProbe:
+              httpGet:
+                path: /health
+                port: supervisor
+              periodSeconds: 30
+              timeoutSeconds: 5
+              failureThreshold: 3
+            readinessProbe:
+              httpGet:
+                path: /health
+                port: supervisor
+              periodSeconds: 10
+              timeoutSeconds: 5
+              failureThreshold: 3
+            resources:
+              claims:
+                - name: compute-domain-channel
+              limits:
+                cpu: 32
+                ephemeral-storage: 256Gi
+                memory: 512Gi
+                nvidia.com/gpu: "4"
+              requests:
+                cpu: 32
+                ephemeral-storage: 256Gi
+                memory: 512Gi
+                nvidia.com/gpu: "4"
+            volumeMounts:
+              - mountPath: /dev/shm
+                name: dshm
+              - mountPath: /mnt/lustre
+                name: lustre

@@ -1,0 +1,14 @@
+# Aggregate serving of DeepSeek-V4.1-Flash on two GB200 trays as ONE
+# dp8/ep8 engine instead of the -x2 replica shape's two independent
+# dp4/ep4 engines: a single LeaderWorkerSet group of two pods, the launch
+# script deriving per-pod start ranks from LWS_WORKER_INDEX the same way
+# the decode role does, so the expert-parallel all-to-all crosses the rack
+# NVLink fabric. The engine config is the agg-inferencex-c256-dspark4-
+# batch40k engine with batch 40960 baked in; the rack-1 affinity is
+# required because the fabric ends at the rack boundary.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - leaderworkerset.yaml
+  - podmonitor.yaml
+  - serviceAccount.yaml
