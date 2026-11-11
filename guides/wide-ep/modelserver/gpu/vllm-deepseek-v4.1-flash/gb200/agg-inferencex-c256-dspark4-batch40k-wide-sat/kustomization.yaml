@@ -24,6 +24,12 @@ patches:
       - op: replace
         path: /spec/leaderWorkerTemplate/workerTemplate/spec/serviceAccountName
         value: deepseek-v4.1-flash-sat
+      # Rack 1 is fully held by other tenants while this probe runs; rack 2
+      # carries the same per-rack NVLink fabric, so the two engine pods stay
+      # on one fabric by pinning to rack 2 instead.
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/affinity/nodeAffinity/requiredDuringSchedulingIgnoredDuringExecution/nodeSelectorTerms/0/matchExpressions/0/key
+        value: node-role.kubernetes.io/hpc-rack-2
   - target:
       kind: PodMonitor
       name: wide-ep-dsv41-flash-agg
