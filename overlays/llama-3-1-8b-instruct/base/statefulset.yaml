@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: "llama-3-1-8b-instruct"
+  labels:
+    app: "llama-3-1-8b-instruct"
+spec:
+  serviceName: "llama-3-1-8b-instruct"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: "llama-3-1-8b-instruct"
+  template:
+    metadata:
+      labels:
+        app: "llama-3-1-8b-instruct"
+        llm-d.ai/model: "llama-3-1-8b-instruct"
+        llm-d.ai/inference-serving: "true"
+        llm-d.ai/role: "vllm"
+    spec:
+      nodeSelector:
+          nvidia.com/gpu.product: "NVIDIA-A100-SXM4-80GB"
+      initContainers:
+        - name: storage-initializer
+          image: "registry.redhat.io/rhoai/odh-kserve-storage-initializer-rhel9@sha256:65f5cb3580d55024249e5ff3ed653a80008eda8a4ec58bbd52b4865940c35c3d"
+          env:
+            - name: HF_HUB_ENABLE_HF_TRANSFER
+              value: "1"
+          args:
+            - "hf://NousResearch/Meta-Llama-3.1-8B-Instruct"
+            - "/mnt/models"
+          volumeMounts:
+            - name: model-storage
+              mountPath: /mnt/models
+      containers:
+        - name: vllm
+          image: "registry.redhat.io/rhaii-early-access/vllm-cuda-rhel9@sha256:e95153e0bdce2b94d0470d4ac983d3c4b67576280afe99e97ce51700c57f3e5a"
+          command:
+            - "vllm"
+            - "serve"
+            - "/mnt/models"
+          args:
+            - "--served-model-name"
+            - "NousResearch/Meta-Llama-3.1-8B-Instruct"
+            - "--port"
+            - "8000"
+            - "--max-model-len"
+            - "2048"
+            - "--gpu-memory-utilization"
+            - "0.9"
+            - "--enable-prefix-caching"
+            - "--disable-uvicorn-access-log"
+          env:
+            - name: HOME
+              value: "/home"
+          ports:
+            - name: http
+              containerPort: 8000
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 120
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+          volumeMounts:
+            - name: model-storage
+              mountPath: /mnt/models
+            - name: dshm
+              mountPath: /dev/shm
+            - name: home
+              mountPath: /home
+          resources:
+            requests:
+              cpu: "4"
+              memory: 16Gi
+            limits:
+              cpu: "8"
+              memory: 32Gi
+              nvidia.com/gpu: 1
+      volumes:
+        - name: model-storage
+          emptyDir: {}
+        - name: dshm
+          emptyDir:
+            medium: Memory
+        - name: home
+          emptyDir: {}
