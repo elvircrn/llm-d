@@ -1,7 +1,8 @@
 # Decode-saturation probe of the wide aggregate: the same LWS and serving
 # config under the -satd-r1 variant label, inheriting rack-1 affinity from
-# the base overlay; its router values pair this label with a
-# weighted-random picker so isl-1 traffic reaches all 8 rank endpoints.
+# the base overlay; its router values pair this label with a chain that
+# carries no prefix-cache affinity filter, so the byte-identical isl-1
+# probe prompts reach all 8 rank endpoints.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:

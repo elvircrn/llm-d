@@ -1,8 +1,9 @@
 # Decode-saturation probe of the wide aggregate, pinned to rack 2: rack 1
 # is fully held by other tenants, and rack 2 carries the same per-rack
 # NVLink fabric, so the two engine pods stay on one fabric. Its router
-# values pair this label with a weighted-random picker so isl-1 traffic
-# reaches all 8 rank endpoints.
+# values pair this label with a chain that carries no prefix-cache
+# affinity filter, so the byte-identical isl-1 probe prompts reach all 8
+# rank endpoints.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:

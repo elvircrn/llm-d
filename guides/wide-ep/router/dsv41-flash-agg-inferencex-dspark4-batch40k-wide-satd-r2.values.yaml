@@ -16,15 +16,14 @@ router:
     pluginsConfigFile: "dsv41-flash-agg-inferencex-dspark4-batch40k-wide-satd-r2-config.yaml"
     pluginsCustomConfig:
       dsv41-flash-agg-inferencex-dspark4-batch40k-wide-satd-r2-config.yaml: |
+        # The nyann synthetic isl-1 prompt is byte-identical for every
+        # request, so prefix-cache affinity pins the whole probe to the one
+        # endpoint that served the first request; a decode saturation probe
+        # runs no affinity filter.
         apiVersion: llm-d.ai/v1alpha1
         kind: EndpointPickerConfig
         plugins:
-        - type: approx-prefix-cache-producer
         - type: inflight-load-producer
-        - type: prefix-cache-affinity-filter
-          parameters:
-            affinityThreshold: 0.80
-            maxTTFTPenaltyMs: 0
         - type: token-load-scorer
           parameters:
             queueThresholdTokens: 500000
@@ -32,7 +31,6 @@ router:
         schedulingProfiles:
         - name: default
           plugins:
-          - pluginRef: prefix-cache-affinity-filter
           - pluginRef: token-load-scorer
           - pluginRef: weighted-random-picker
 
