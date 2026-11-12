@@ -18,8 +18,8 @@ patches:
                     sizeLimit: 768Gi
                 - name: nvme-cache
                   hostPath:
-                    path: /mnt/local/kv-cache
-                    type: DirectoryOrCreate
+                    path: /mnt/numa0
+                    type: Directory
               containers:
                 - name: vllm
                   env:
