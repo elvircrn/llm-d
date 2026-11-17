@@ -53,11 +53,7 @@ spec:
     template:
       containers:
         - name: main
-          args:
-            - --profiler-config.profiler=torch
-            - --profiler-config.torch_profiler_dir=/tmp/vllm-profile
-            - --profiler-config.delay_iterations=8
-            - --profiler-config.max_iterations=32
+          args: []
           env:
             - name: VLLM_ADDITIONAL_ARGS
               value: >-
