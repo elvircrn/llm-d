@@ -1,21 +1,16 @@
 # Qwen3-4B prefill/decode
 
-A single-host prefill/decode pair for Qwen3-4B-Instruct-2507, one GPU per role,
-as two StatefulSets rather than a `DisaggregatedSet`: the pair runs on clusters
-that carry neither that CRD nor the controller behind it.
+Qwen3-4B-Instruct-2507 served as a prefill/decode pair, one GPU per rank,
+through the RHOAI operator: the `LLMInferenceService` declares the decode
+template plus a `prefill` stanza, and the operator builds both workloads, the
+EPP that pairs a prefill rank with each decode request, and the route on the
+shared gateway.
 
-- `qwen3-4b-prefill` runs the prompt pass and publishes its KV cache over NIXL
-  (`kv_role: kv_producer`).
-- `qwen3-4b-decode` reads that cache (`kv_role: kv_consumer`) and generates. A
-  routing sidecar listens on port 8000 and speaks the vLLM NIXL protocol.
-- Service `qwen3-4b` is the front door and lands on the sidecar; service
-  `qwen3-4b-prefill` is headless for the rank lookup.
+The decode container's `args` is an empty list on purpose: a profiling campaign
+appends its profiler flags there, and the template's args are passed through to
+`vllm serve`. The prefill stanza carries its profiler flags inline, since only
+the decode template is reachable from the campaign's overlay machinery.
 
-Both ranks carry `llm-d.ai/role` (`prefill` / `decode`), `llm-d.ai/model`, and
-`llm-d.ai/inference-serving=true`, and both name their serving container `vllm`,
-which is what a profiler-driven campaign keys on to place per-role flags.
-
-Client traffic must arrive through something that picks the prefill rank per
-request — the llm-d EPP (`InferencePool` + `Gateway`) or the routing sidecar
-paired with it. Posting directly to the `qwen3-4b` service without that picker
-bypasses the prompt pass, which is a decode-only benchmark, not a P/D one.
+Both ranks carry `llm-d.ai/role` (`prefill` / `decode`) and share the service
+name in `app.kubernetes.io/name`, which is what a campaign selects pods on when
+it collects traces from both of them.
