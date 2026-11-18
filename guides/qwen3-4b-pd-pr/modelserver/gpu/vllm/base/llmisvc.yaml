@@ -37,23 +37,15 @@ spec:
               --served-model-name Qwen/Qwen3-4B-Instruct-2507 "publishers/${NS}/models/Qwen/Qwen3-4B-Instruct-2507" \
               --port 8001 \
               --root-path "/${NS}/qwen3-4b-pr" \
-              --disable-access-log-for-endpoints /health,/metrics,/ping \
-              --shutdown-timeout 40 \
+              --load-format dummy \
+              --enforce-eager \
               --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_consumer"}' \
-              --tensor-parallel-size 1 \
               --enable-ssl-refresh \
               --ssl-certfile /var/run/kserve/tls/tls.crt \
               --ssl-keyfile /var/run/kserve/tls/tls.key \
-              ${VLLM_ADDITIONAL_ARGS} \
               "$@"
         securityContext:
           runAsGroup: 0
-        env:
-          - name: VLLM_ADDITIONAL_ARGS
-            value: >-
-              --gpu-memory-utilization=0.90
-              --max-model-len=8192
-              --enable-prefix-caching
         startupProbe:
           httpGet:
             path: /health
@@ -106,23 +98,15 @@ spec:
                 --served-model-name Qwen/Qwen3-4B-Instruct-2507 \
                 --port 8001 \
                 --root-path "/${NS}/qwen3-4b-pr" \
-                --disable-access-log-for-endpoints /health,/metrics,/ping \
-                --shutdown-timeout 40 \
+                --load-format dummy \
+                --enforce-eager \
                 --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_producer"}' \
-                --tensor-parallel-size 1 \
                 --enable-ssl-refresh \
                 --ssl-certfile /var/run/kserve/tls/tls.crt \
                 --ssl-keyfile /var/run/kserve/tls/tls.key \
-                ${VLLM_ADDITIONAL_ARGS} \
                 "$@"
           securityContext:
             runAsGroup: 0
-          env:
-            - name: VLLM_ADDITIONAL_ARGS
-              value: >-
-                --gpu-memory-utilization=0.90
-                --max-model-len=8192
-                --enable-prefix-caching
           startupProbe:
             httpGet:
               path: /health
