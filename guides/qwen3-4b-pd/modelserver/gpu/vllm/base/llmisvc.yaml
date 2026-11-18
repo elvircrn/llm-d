@@ -35,6 +35,32 @@ spec:
               --gpu-memory-utilization=0.90
               --max-model-len=8192
               --enable-prefix-caching
+
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8001
+            scheme: HTTPS
+          periodSeconds: 10
+          timeoutSeconds: 10
+          failureThreshold: 180
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+            scheme: HTTPS
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 20
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+            scheme: HTTPS
+          periodSeconds: 5
+          timeoutSeconds: 10
+          failureThreshold: 3
         resources:
           requests:
             cpu: "4"
