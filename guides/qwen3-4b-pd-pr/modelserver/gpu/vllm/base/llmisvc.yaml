@@ -96,14 +96,11 @@ spec:
               if [ "$#" -gt 0 ]; then set -- "$0" "$@"; fi
               exec vllm serve /mnt/models \
                 --served-model-name Qwen/Qwen3-4B-Instruct-2507 \
-                --port 8001 \
+                --port 8000 \
                 --root-path /ecrncevi-pirate/qwen3-4b-pr \
                 --load-format dummy \
                 --enforce-eager \
                 --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_producer"}' \
-                --enable-ssl-refresh \
-                --ssl-certfile /var/run/kserve/tls/tls.crt \
-                --ssl-keyfile /var/run/kserve/tls/tls.key \
                 "$@"
           securityContext:
             runAsGroup: 0
