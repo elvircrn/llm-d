@@ -68,7 +68,7 @@ spec:
             nvidia.com/gpu: "1"
           limits:
             cpu: "8"
-            memory: 64Gi
+            memory: 256Gi
             nvidia.com/gpu: "1"
   prefill:
     replicas: 1
