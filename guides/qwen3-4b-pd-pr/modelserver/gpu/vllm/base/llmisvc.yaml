@@ -36,6 +36,7 @@ spec:
             exec vllm serve /mnt/models \
               --served-model-name Qwen/Qwen3-4B-Instruct-2507 "publishers/${NS}/models/Qwen/Qwen3-4B-Instruct-2507" \
               --port 8001 \
+              --host :: \
               --root-path /ecrncevi-pirate/qwen3-4b-pr \
               --load-format dummy \
               --enforce-eager \
