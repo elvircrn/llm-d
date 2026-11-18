@@ -107,16 +107,16 @@ spec:
           startupProbe:
             httpGet:
               path: /health
-              port: 8001
-              scheme: HTTPS
+              port: 8000
+              scheme: HTTP
             periodSeconds: 10
             timeoutSeconds: 10
             failureThreshold: 180
           livenessProbe:
             httpGet:
               path: /health
-              port: 8001
-              scheme: HTTPS
+              port: 8000
+              scheme: HTTP
             initialDelaySeconds: 30
             periodSeconds: 30
             timeoutSeconds: 10
@@ -124,8 +124,8 @@ spec:
           readinessProbe:
             httpGet:
               path: /health
-              port: 8001
-              scheme: HTTPS
+              port: 8000
+              scheme: HTTP
             periodSeconds: 5
             timeoutSeconds: 10
             failureThreshold: 3
