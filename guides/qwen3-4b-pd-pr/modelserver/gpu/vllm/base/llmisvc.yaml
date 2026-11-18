@@ -1,0 +1,159 @@
+# Qwen3-4B-Instruct-2507 as a prefill/decode pair, one GPU per rank, served
+# through the RHOAI operator. Unlike the plain qwen3-4b-pd guide, each serving
+# container states its own `bash -c` command with a single script argument:
+# that is the shape a campaign's vLLM wheel build prepends its install line
+# to, so a source build lands in this pod before `vllm serve` starts. The
+# extra group 0 is what lets that install write into the image's venv.
+apiVersion: serving.kserve.io/v1alpha2
+kind: LLMInferenceService
+metadata:
+  name: qwen3-4b-pr
+spec:
+  baseRefs: []
+  labels:
+    llm-d.ai/model: Qwen3-4B-Instruct
+  model:
+    uri: hf://Qwen/Qwen3-4B-Instruct-2507
+    name: Qwen/Qwen3-4B-Instruct-2507
+  replicas: 1
+  parallelism:
+    tensor: 1
+  router:
+    gateway:
+      refs:
+        - name: openshift-ai-inference
+          namespace: openshift-ingress
+    route: {}
+    scheduler: {}
+  template:
+    containers:
+      - name: main
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            NS=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+            if [ "$#" -gt 0 ]; then set -- "$0" "$@"; fi
+            exec vllm serve /mnt/models \
+              --served-model-name Qwen/Qwen3-4B-Instruct-2507 "publishers/${NS}/models/Qwen/Qwen3-4B-Instruct-2507" \
+              --port 8001 \
+              --root-path "/${NS}/qwen3-4b-pr" \
+              --disable-access-log-for-endpoints /health,/metrics,/ping \
+              --shutdown-timeout 40 \
+              --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_consumer"}' \
+              --tensor-parallel-size 1 \
+              --enable-ssl-refresh \
+              --ssl-certfile /var/run/kserve/tls/tls.crt \
+              --ssl-keyfile /var/run/kserve/tls/tls.key \
+              ${VLLM_ADDITIONAL_ARGS} \
+              "$@"
+        securityContext:
+          runAsGroup: 0
+        env:
+          - name: VLLM_ADDITIONAL_ARGS
+            value: >-
+              --gpu-memory-utilization=0.90
+              --max-model-len=8192
+              --enable-prefix-caching
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8001
+            scheme: HTTPS
+          periodSeconds: 10
+          timeoutSeconds: 10
+          failureThreshold: 180
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+            scheme: HTTPS
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 20
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+            scheme: HTTPS
+          periodSeconds: 5
+          timeoutSeconds: 10
+          failureThreshold: 3
+        resources:
+          requests:
+            cpu: "4"
+            memory: 32Gi
+            nvidia.com/gpu: "1"
+          limits:
+            cpu: "8"
+            memory: 256Gi
+            nvidia.com/gpu: "1"
+  prefill:
+    replicas: 1
+    labels:
+      llm-d.ai/model: Qwen3-4B-Instruct
+    parallelism:
+      tensor: 1
+    template:
+      containers:
+        - name: main
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              NS=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+              if [ "$#" -gt 0 ]; then set -- "$0" "$@"; fi
+              exec vllm serve /mnt/models \
+                --served-model-name Qwen/Qwen3-4B-Instruct-2507 \
+                --port 8001 \
+                --root-path "/${NS}/qwen3-4b-pr" \
+                --disable-access-log-for-endpoints /health,/metrics,/ping \
+                --shutdown-timeout 40 \
+                --kv-transfer-config '{"kv_connector":"NixlConnector","kv_role":"kv_producer"}' \
+                --tensor-parallel-size 1 \
+                --enable-ssl-refresh \
+                --ssl-certfile /var/run/kserve/tls/tls.crt \
+                --ssl-keyfile /var/run/kserve/tls/tls.key \
+                ${VLLM_ADDITIONAL_ARGS} \
+                "$@"
+          securityContext:
+            runAsGroup: 0
+          env:
+            - name: VLLM_ADDITIONAL_ARGS
+              value: >-
+                --gpu-memory-utilization=0.90
+                --max-model-len=8192
+                --enable-prefix-caching
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8001
+              scheme: HTTPS
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 180
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+              scheme: HTTPS
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 20
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+              scheme: HTTPS
+            periodSeconds: 5
+            timeoutSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "4"
+              memory: 32Gi
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "8"
+              memory: 64Gi
+              nvidia.com/gpu: "1"
