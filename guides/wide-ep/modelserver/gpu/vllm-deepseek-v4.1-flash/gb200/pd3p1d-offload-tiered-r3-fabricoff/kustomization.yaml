@@ -1,0 +1,14 @@
+# Full pd3p1d rack-3 variant with cross-node NCCL NVLS/MNNVL disabled on
+# decode: the rack fabric's multicast state is wedged and spins
+# ncclCommInitRank; see nccl-fabric-off.yaml. Prefill stays untouched.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../pd3p1d-offload-tiered-r3
+patches:
+  - path: nccl-fabric-off.yaml
+    target:
+      group: leaderworkerset.x-k8s.io
+      version: v1
+      kind: LeaderWorkerSet
+      name: wide-ep-dsv41-flash-decode
