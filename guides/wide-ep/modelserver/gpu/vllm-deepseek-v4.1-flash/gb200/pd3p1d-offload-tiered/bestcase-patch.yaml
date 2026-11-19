@@ -1,0 +1,29 @@
+apiVersion: leaderworkerset.x-k8s.io/v1
+kind: LeaderWorkerSet
+metadata:
+  name: wide-ep-dsv41-flash-prefill
+spec:
+  leaderWorkerTemplate:
+    workerTemplate:
+      spec:
+        containers:
+          - name: vllm
+            env:
+              - name: VLLM_EXTRA_ARGS
+                value: '--max-num-batched-tokens 40960 --enable-ep-weight-filter --compilation-config {"mode":"VLLM_COMPILE","cudagraph_mode":"FULL_AND_PIECEWISE","max_cudagraph_capture_size":4096}'
+              - name: KV_OFFLOAD_CPU_BYTES
+                value: "68719476736"
+---
+apiVersion: leaderworkerset.x-k8s.io/v1
+kind: LeaderWorkerSet
+metadata:
+  name: wide-ep-dsv41-flash-decode
+spec:
+  leaderWorkerTemplate:
+    workerTemplate:
+      spec:
+        containers:
+          - name: vllm
+            env:
+              - name: VLLM_EXTRA_ARGS
+                value: '--max-num-seqs 512 --compilation-config {"cudagraph_mode":"FULL_DECODE_ONLY","max_cudagraph_capture_size":512}'

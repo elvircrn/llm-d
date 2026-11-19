@@ -1,0 +1,18 @@
+# pd3p1d with tiered KV offloading: three prefill groups and the decode
+# engine spanning four pods, one dp16/ep16 engine across all 4-GPU trays.
+# Mirrors dynamo 3p1d_dep16 (28 GPUs @ c3018) but with best-case vLLM:
+# DSpark 3+1 (mod 4 aligned) and auto cudagraph (max 4096/512, no manual list).
+# Each prefill group is one pod on its own 4-GPU tray TP1xDP4+EP4,
+# router balances prefill across three engines.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../pd1pd2
+  - render.yaml
+components:
+  - ../components/offloading-tiered
+patches:
+  - path: prefill-replicas.yaml
+  - path: decode-span.yaml
+  - path: dspark3-patch.yaml
+  - path: bestcase-patch.yaml
