@@ -20,6 +20,15 @@ router:
     # EPP process, so multiple replicas would each see only a fraction of
     # the per-endpoint load and skew the scores.
     replicas: 1
+    # The precise prefix index plus per-request body relay grows past the
+    # base layer's 16Gi limit in ~80min under c1024+ agentic replay; the
+    # EPP is OOMKilled mid-sweep. 256Gi clears the full concurrency range.
+    resources:
+      requests:
+        cpu: "16"
+        memory: 32Gi
+      limits:
+        memory: 256Gi
     pluginsConfigFile: "dsv41-flash-pd-config.yaml"
     pluginsCustomConfig:
       dsv41-flash-pd-config.yaml: |
