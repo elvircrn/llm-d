@@ -7,3 +7,9 @@ resources:
   - ../pd3p1d-offload-tiered-r3
 patches:
   - path: prefill-replicas-1.yaml
+  - path: nccl-fabric-off.yaml
+    target:
+      group: leaderworkerset.x-k8s.io
+      version: v1
+      kind: LeaderWorkerSet
+      name: wide-ep-dsv41-flash-decode
