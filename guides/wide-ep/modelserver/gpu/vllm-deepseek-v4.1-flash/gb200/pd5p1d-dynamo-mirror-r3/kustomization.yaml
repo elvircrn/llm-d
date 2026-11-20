@@ -1,0 +1,10 @@
+# Dynamo mirror at 20P+16D (36 GPUs, benchmark 448128): prefill grows to 5
+# groups, decode caps from the recipe's 5p1d c5600 override (max-seqs 112,
+# batched 1120, cudagraph 672, async-loads 7).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../pd3p1d-dynamo-mirror-r3
+patches:
+  - path: prefill-replicas-5.yaml
+  - path: decode-c5600-env.yaml

@@ -1,0 +1,10 @@
+# Dynamo mirror at 12P+32D (44 GPUs, benchmark 448126): decode span grows
+# to 8 pods for DP32/EP32, decode caps from the recipe's dep32_c3018
+# override (max-seqs 18, batched 180, cudagraph 108, EPLB 32).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../pd3p1d-dynamo-mirror-r3
+patches:
+  - path: decode-span-8.yaml
+  - path: decode-dep32-env.yaml
