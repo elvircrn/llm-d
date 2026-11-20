@@ -20,11 +20,11 @@ spec:
               - name: VLLM_LOG_STATS_INTERVAL
                 value: "1"
               - name: UCX_MEMTYPE_CACHE
-                value: "n"
+                value: "0"
               - name: UCX_MEMTYPE_REG_WHOLE
-                value: "n"
+                value: "0"
               - name: UCX_RNDV_PIPELINE_ERROR_HANDLING
-                value: "y"
+                value: "1"
               - name: NIXL_UCX_SGL_ENABLE
                 value: "1"
               - name: UCX_MODULE_DIR
