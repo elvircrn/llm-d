@@ -116,7 +116,7 @@ spec:
                                                  "spec_name":"TieringOffloadingSpec",
                                                  "cpu_bytes_to_use":'"${KV_OFFLOAD_CPU_BYTES:-107374182400}"',
                                                  "eviction_policy":"lru",
-                                                 "secondary_tiers":[{"type":"fs","root_dir":"/mnt/nvme-cache",
+                                                 "secondary_tiers":[{"type":"fs","root_dir":"/mnt/numa0",
                                                    "n_read_threads":16,"n_write_threads":16}]
                                             }}]}}'
                     ;;

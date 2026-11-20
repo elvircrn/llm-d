@@ -16,7 +16,7 @@ patches:
                   emptyDir:
                     medium: Memory
                     sizeLimit: 768Gi
-                - name: nvme-cache
+                - name: numa0
                   hostPath:
                     path: /mnt/numa0
                     type: Directory
@@ -33,5 +33,5 @@ patches:
                     requests:
                       memory: 896Gi
                   volumeMounts:
-                    - name: nvme-cache
-                      mountPath: /mnt/nvme-cache
+                    - name: numa0
+                      mountPath: /mnt/numa0
