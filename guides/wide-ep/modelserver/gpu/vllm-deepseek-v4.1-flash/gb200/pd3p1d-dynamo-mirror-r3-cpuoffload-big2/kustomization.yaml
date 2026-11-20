@@ -1,0 +1,10 @@
+# Dynamo mirror node-budget retry: 120 CPU (24 of the node's 144 left for
+# the CSI and GPU device-plugin daemons that 136 starved to death on
+# 2026-11-20) and 880Gi per pod, on the proven 70GiB CPU-only offload
+# tier from pd3p1d-dynamo-mirror-r3-cpuoffload.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../pd3p1d-dynamo-mirror-r3-cpuoffload
+patches:
+  - path: resources-big.yaml

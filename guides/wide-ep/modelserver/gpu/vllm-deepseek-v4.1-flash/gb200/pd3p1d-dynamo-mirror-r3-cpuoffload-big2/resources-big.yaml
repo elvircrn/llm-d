@@ -1,0 +1,43 @@
+apiVersion: leaderworkerset.x-k8s.io/v1
+kind: LeaderWorkerSet
+metadata:
+  name: wide-ep-dsv41-flash-prefill
+spec:
+  leaderWorkerTemplate:
+    workerTemplate:
+      spec:
+        containers:
+          - name: vllm
+            resources:
+              requests:
+                cpu: "120"
+                ephemeral-storage: 256Gi
+                memory: 880Gi
+                nvidia.com/gpu: "4"
+              limits:
+                cpu: "120"
+                ephemeral-storage: 256Gi
+                memory: 880Gi
+                nvidia.com/gpu: "4"
+---
+apiVersion: leaderworkerset.x-k8s.io/v1
+kind: LeaderWorkerSet
+metadata:
+  name: wide-ep-dsv41-flash-decode
+spec:
+  leaderWorkerTemplate:
+    workerTemplate:
+      spec:
+        containers:
+          - name: vllm
+            resources:
+              requests:
+                cpu: "120"
+                ephemeral-storage: 256Gi
+                memory: 880Gi
+                nvidia.com/gpu: "4"
+              limits:
+                cpu: "120"
+                ephemeral-storage: 256Gi
+                memory: 880Gi
+                nvidia.com/gpu: "4"
