@@ -1,0 +1,11 @@
+# Exact mirror of the InferenceX dynamo gb200 3p1d dep4/dep16 c3018 recipe
+# (submission 448125, input_tput 18.4M tok/s): push-mode CUDA-buffered NIXL
+# KV with SimpleCPUOffload, dspark 5, their prefill/decode batch caps and
+# cudagraph sizes, via VLLM_EXTRA_ARGS last-wins on the fabricoff chain.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../pd3p1d-offload-tiered-r3-fabricoff
+patches:
+  - path: prefill-mirror-env.yaml
+  - path: decode-mirror-env.yaml
