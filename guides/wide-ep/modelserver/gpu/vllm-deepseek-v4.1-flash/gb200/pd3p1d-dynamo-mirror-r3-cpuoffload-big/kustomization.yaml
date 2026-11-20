@@ -1,0 +1,12 @@
+# Dynamo mirror at dynamo's own node budget: 136 CPU (node has 144,
+# daemonsets take the rest) and 880Gi memory per pod on both roles, with
+# the prefill CPU offload tier raised to 300GiB (dynamo reports
+# allocated_cpu_dram_gb 300). Tests whether our 32-core / 512Gi pod caps
+# starved tokenization and scheduling.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../pd3p1d-dynamo-mirror-r3-cpuoffload
+patches:
+  - path: resources-big.yaml
+  - path: prefill-kv300-env.yaml
