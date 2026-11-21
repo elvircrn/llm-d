@@ -1,0 +1,10 @@
+# Rack-2 node-budget mirror at 96 CPU per pod: widens the schedulable
+# node set (144-CPU nodes need only 96 free) while still tripling the
+# 32-CPU baseline that produced the 4.9x gap. Memory stays 880Gi, KV
+# offload stays CPU-only 70GiB.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../pd3p1d-dynamo-mirror-r2-cpuoffload-big2
+patches:
+  - path: resources-96.yaml
