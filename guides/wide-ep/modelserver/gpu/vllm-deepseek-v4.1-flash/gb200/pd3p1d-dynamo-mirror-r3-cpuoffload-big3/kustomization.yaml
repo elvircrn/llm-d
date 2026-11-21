@@ -1,0 +1,9 @@
+# Rack-3 node-budget mirror at 96 CPU per pod: same widened-fit
+# scheduling as the rack-2 big3 variant, pinned to hpc-rack-3 whose
+# NVL72 fabric the decode group spans.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../pd3p1d-dynamo-mirror-r3-cpuoffload-big2
+patches:
+  - path: resources-96.yaml
