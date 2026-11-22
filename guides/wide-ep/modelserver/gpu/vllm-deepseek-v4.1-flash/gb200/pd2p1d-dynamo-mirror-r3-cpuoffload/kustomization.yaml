@@ -1,0 +1,10 @@
+# Descaled dynamo mirror: 2 prefill groups instead of 3 (6 GPU nodes
+# total), 96 CPU / 880Gi per pod, CPU-only 70GiB offload, rack-3, sick
+# nodes excluded at the campaign level. For half-concurrency runs when
+# the cluster can't fit 7 nodes.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../pd3p1d-dynamo-mirror-r3-cpuoffload-big3
+patches:
+  - path: prefill-replicas-2.yaml
