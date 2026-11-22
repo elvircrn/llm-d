@@ -1,0 +1,9 @@
+# Minimal dynamo mirror: 2 prefill groups and a 2-pod wide-EP decode
+# group (DP8 across 2 nodes, 16 GPUs total). For concurrency runs when
+# the cluster can only fit four nodes.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../pd2p1d-dynamo-mirror-r3-cpuoffload
+patches:
+  - path: decode-span-2.yaml
