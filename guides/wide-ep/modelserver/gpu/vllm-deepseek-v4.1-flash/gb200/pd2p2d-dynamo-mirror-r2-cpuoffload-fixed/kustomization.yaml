@@ -1,0 +1,25 @@
+# Fixed 2P+2D dynamo mirror on rack 2: same KV-routing fixes as the
+# rack-3 variant with the fabric affinity on hpc-rack-2.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../pd2p2d-dynamo-mirror-r3-cpuoffload-fixed
+patches:
+  - target:
+      group: leaderworkerset.x-k8s.io
+      version: v1
+      kind: LeaderWorkerSet
+      name: wide-ep-dsv41-flash-prefill
+    patch: |-
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/affinity/nodeAffinity/requiredDuringSchedulingIgnoredDuringExecution/nodeSelectorTerms/0/matchExpressions/0/key
+        value: node-role.kubernetes.io/hpc-rack-2
+  - target:
+      group: leaderworkerset.x-k8s.io
+      version: v1
+      kind: LeaderWorkerSet
+      name: wide-ep-dsv41-flash-decode
+    patch: |-
+      - op: replace
+        path: /spec/leaderWorkerTemplate/workerTemplate/spec/affinity/nodeAffinity/requiredDuringSchedulingIgnoredDuringExecution/nodeSelectorTerms/0/matchExpressions/0/key
+        value: node-role.kubernetes.io/hpc-rack-2
