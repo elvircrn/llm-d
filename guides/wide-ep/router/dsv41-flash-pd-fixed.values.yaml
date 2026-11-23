@@ -36,6 +36,7 @@ router:
           parameters:
             indexerConfig:
               kvBlockIndexConfig:
+                enableMetrics: true
                 inMemoryConfig:
                   podCacheSize: 128
               kvCacheBackendConfigs:
