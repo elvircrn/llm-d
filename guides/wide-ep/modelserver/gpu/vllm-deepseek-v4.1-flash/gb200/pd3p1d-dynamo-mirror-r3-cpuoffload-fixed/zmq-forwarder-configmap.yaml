@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zmq-kv-forwarder
+  namespace: vllm
+data:
+  forwarder.py: |
+    import zmq
+    import os
+
+    ctx = zmq.Context()
+
+    sub = ctx.socket(zmq.SUB)
+    sub.setsockopt_string(zmq.SUBSCRIBE, "")
+    base = int(os.environ.get("RANK_PORT_BASE", "5550"))
+    count = int(os.environ.get("RANK_COUNT", "4"))
+    for i in range(count):
+        sub.connect(f"tcp://localhost:{base + i}")
+
+    pub = ctx.socket(zmq.PUB)
+    pub.bind(f"tcp://*:{os.environ.get('FORWARD_PORT', '5556')}")
+
+    while True:
+        msg = sub.recv_multipart()
+        pub.send_multipart(msg)

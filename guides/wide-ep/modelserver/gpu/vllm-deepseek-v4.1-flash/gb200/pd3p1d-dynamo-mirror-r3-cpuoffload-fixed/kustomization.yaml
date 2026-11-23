@@ -1,0 +1,11 @@
+# Full 3P+4D dynamo mirror with KV-routing fixes: ZMQ forwarder
+# sidecar aggregates per-rank publishers, router affinity retuned for
+# overload, self-describing tier events, index metrics.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../pd3p1d-dynamo-mirror-r3-cpuoffload-big3
+  - zmq-forwarder-configmap.yaml
+patches:
+  - path: prefill-fixed-env.yaml
+  - path: prefill-forwarder-sidecar.yaml
