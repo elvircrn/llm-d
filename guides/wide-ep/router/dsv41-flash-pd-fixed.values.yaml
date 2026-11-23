@@ -4,6 +4,8 @@
 # dsv41-flash-pd.values.yaml.
 router:
   epp:
+    image:
+      tag: main
     flags:
       allow-experimental-plugins: true
     pluginsConfigFile: "dsv41-flash-pd-fixed-config.yaml"
@@ -34,6 +36,7 @@ router:
         - type: precise-prefix-cache-producer
           parameters:
             indexerConfig:
+              hashAlgorithm: xxh64
               kvBlockIndexConfig:
                 inMemoryConfig:
                   podCacheSize: 128
