@@ -9,7 +9,7 @@ spec:
         containers:
           - name: zmq-forwarder
             image: python:3.12-slim
-            command: ["python3", "/forwarder/forwarder.py"]
+            command: ["sh", "-c", "pip install -q pyzmq && python3 /forwarder/forwarder.py"]
             env:
               - name: RANK_PORT_BASE
                 value: "5550"

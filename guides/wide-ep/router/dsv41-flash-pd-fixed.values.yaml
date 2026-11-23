@@ -34,7 +34,6 @@ router:
         - type: precise-prefix-cache-producer
           parameters:
             indexerConfig:
-              hashAlgorithm: xxh64
               kvBlockIndexConfig:
                 inMemoryConfig:
                   podCacheSize: 128
