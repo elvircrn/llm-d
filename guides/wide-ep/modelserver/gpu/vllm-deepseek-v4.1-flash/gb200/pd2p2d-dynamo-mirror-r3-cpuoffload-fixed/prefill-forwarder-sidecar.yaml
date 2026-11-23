@@ -1,0 +1,36 @@
+apiVersion: leaderworkerset.x-k8s.io/v1
+kind: LeaderWorkerSet
+metadata:
+  name: wide-ep-dsv41-flash-prefill
+spec:
+  leaderWorkerTemplate:
+    workerTemplate:
+      spec:
+        containers:
+          - name: zmq-forwarder
+            image: python:3.12-slim
+            command: ["python3", "/forwarder/forwarder.py"]
+            env:
+              - name: RANK_PORT_BASE
+                value: "5550"
+              - name: RANK_COUNT
+                value: "4"
+              - name: FORWARD_PORT
+                value: "5556"
+            volumeMounts:
+              - name: forwarder-script
+                mountPath: /forwarder
+            resources:
+              requests:
+                cpu: "1"
+                memory: 256Mi
+              limits:
+                cpu: "2"
+                memory: 512Gi
+        volumes:
+          - name: forwarder-script
+            configMap:
+              name: zmq-kv-forwarder
+              items:
+                - key: forwarder.py
+                  path: forwarder.py

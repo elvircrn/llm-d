@@ -1,0 +1,11 @@
+# 2P+2D dynamo mirror with KV-event routing fixes: ZMQ forwarder
+# sidecar aggregates per-rank publishers onto the router-facing port,
+# router affinity retuned for overload, self-describing tier events.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../pd2p2d-dynamo-mirror-r3-cpuoffload
+  - zmq-forwarder-configmap.yaml
+patches:
+  - path: prefill-fixed-env.yaml
+  - path: prefill-forwarder-sidecar.yaml
