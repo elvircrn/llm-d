@@ -4660,7 +4660,7 @@
       "uid": "${DS_PROMETHEUS}"
      },
      "editorMode": "code",
-     "expr": "inference_objective_running_requests{model_name=\"nvidia/DeepSeek-R1-0528-NVFP4-v2\", pod=~\"${deployment}-.*\"}",
+     "expr": "inference_objective_running_requests{pod=~\"${deployment}-.*\"}",
      "legendFormat": "Running",
      "refId": "A"
     }
