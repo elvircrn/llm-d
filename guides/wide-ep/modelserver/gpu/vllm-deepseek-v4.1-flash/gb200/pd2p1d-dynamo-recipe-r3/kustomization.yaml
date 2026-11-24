@@ -1,0 +1,10 @@
+# Two-prefill replica recipe variant for capacity-constrained windows:
+# same engine stack as pd3p1d-dynamo-recipe-r3 with the prefill group at
+# two replicas. Decode is unchanged (single 4-pod group); decode span and
+# aiperf concurrency are set by the campaign.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../pd3p1d-dynamo-recipe-r3
+patches:
+  - path: prefill-replicas-2.yaml
