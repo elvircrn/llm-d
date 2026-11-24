@@ -46,6 +46,9 @@ router:
                 weight: 0.9
             tokenProcessorConfig:
               blockSizeTokens: 64
+              # Must equal the serving pods' PYTHONHASHSEED or the precise
+              # index keys never match engine-published block hashes.
+              hashSeed: "0"
             speculativeIndexing: true
             kvEventsConfig:
               topicFilter: "kv@"
