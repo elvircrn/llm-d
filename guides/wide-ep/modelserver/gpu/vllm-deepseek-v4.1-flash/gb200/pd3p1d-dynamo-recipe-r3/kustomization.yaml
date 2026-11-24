@@ -1,14 +1,15 @@
-# Dynamo 448125 recipe alignment on the fabric-KV chain: prefill carries
-# NixlConnector kv_both plus SimpleCPUOffloadConnector with lazy offload
-# (the submission's "vllm-simple" offload), utilization-bounded KV at 0.90,
-# NCCL cuMem allocations. Decode was already recipe-aligned by the mirror
-# overlay; this only adds the two env flags it lacked. Session-affinity
-# routing and NUMA binding stay out: the first is dynamo's router, the
-# second OOM-killed node daemons on these GB200s.
+# Dynamo 448125 recipe alignment on the fabric-KV chain, with the KV-events
+# publisher on vLLM's native per-rank ports: the endpoint stays at the
+# 5556 base and vLLM offsets each DP rank's publisher to 5556+rank, which
+# the EPP dials per ranked endpoint (socketPort + rankIndex). The
+# zmq-forwarder sidecar is deliberately absent: merging the four rank
+# publishers onto one port interleaves their sequence counters, which the
+# EPP reads as publisher restarts and answers by clearing the pod's index
+# state, wiping the prefix index continuously.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - ../pd3p1d-dynamo-mirror-r3-cpuoffload-fixed
+  - ../pd3p1d-dynamo-mirror-r3-cpuoffload
 patches:
   - path: prefill-recipe-env.yaml
   - path: decode-recipe-env.yaml
