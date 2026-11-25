@@ -1,10 +1,13 @@
 # DeepSeek-V4.1-Flash P/D router with precise KV-routing fixes:
-# rank-aware index subscription (via forwarder sidecars), overload-tuned
-# affinity. Only fields supported by the deployed EPP version.
+# rank-aware index subscription (native per-rank ports), overload-tuned
+# affinity, and the conversation-prefix render cache (PR 4569) so the
+# token-producer serves cached prefixes instead of re-rendering the full
+# prompt on every turn.
 router:
   epp:
     image:
-      tag: main
+      repository: quay.io/rh-ee-ecrncevi/llm-d
+      tag: epp-pr4569
     flags:
       allow-experimental-plugins: true
     pluginsConfigFile: "dsv41-flash-pd-fixed-config.yaml"
@@ -25,6 +28,13 @@ router:
             modelName: deepseek-ai/DeepSeek-V4.1-Flash
             vllm:
               url: "http://dsv41-flash-render:8000"
+            prefixCache:
+              enabled: true
+              maxEntries: 8192
+              maxBytes: 536870912
+              asyncWarm:
+                concurrency: 16
+                timeout: "30s"
         - type: endpoint-notification-source
         - type: metrics-data-source
           parameters: {scheme: "http", path: "/metrics", insecureSkipVerify: true}
