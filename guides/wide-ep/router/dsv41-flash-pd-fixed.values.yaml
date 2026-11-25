@@ -6,8 +6,9 @@
 router:
   epp:
     image:
-      repository: quay.io/rh-ee-ecrncevi/llm-d
-      tag: epp-pr4569
+      registry: "quay.io"
+      repository: "rh-ee-ecrncevi/llm-d"
+      tag: "epp-pr4569"
     flags:
       allow-experimental-plugins: true
     pluginsConfigFile: "dsv41-flash-pd-fixed-config.yaml"
