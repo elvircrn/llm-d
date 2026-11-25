@@ -28,11 +28,18 @@ router:
           parameters:
             modelName: deepseek-ai/DeepSeek-V4.1-Flash
             vllm:
-              url: "http://dsv41-flash-render:8000"
+              endpointDiscovery:
+                portRules:
+                  - selector: {matchLabels: {llm-d.ai/role: prefill}}
+                    basePort: 8000
+                  - selector: {matchLabels: {llm-d.ai/role: decode}}
+                    basePort: 8200
+                loadBalancer: {type: round-robin}
+                attemptTimeout: 10s
               prefixCache:
                 enabled: true
                 maxEntries: 8192
-                maxBytes: 536870912
+                maxBytes: 4294967296
                 asyncWarm:
                   concurrency: 16
                   timeout: "30s"
