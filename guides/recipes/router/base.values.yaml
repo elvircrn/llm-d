@@ -479,3 +479,12 @@ router:
     sampling:
       sampler: "parentbased_traceidratio"
       samplerArg: "0.1"
+
+  monitoring:
+    prometheus:
+      auth:
+        # The EPP's metrics endpoint validates bearer tokens via
+        # TokenReview, which requires a cluster-scoped ClusterRole the
+        # campaign runner drops. Serving /metrics unauthenticated lets
+        # campaign-prometheus scrape scheduler and plugin metrics.
+        enabled: false
