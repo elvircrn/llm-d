@@ -15,5 +15,7 @@ spec:
                 value: "1"
               - name: VLLM_USE_RUST_FRONTEND
                 value: "1"
+              - name: HF_HUB_OFFLINE
+                value: "1"
               - name: PYTHONHASHSEED
                 value: "0"

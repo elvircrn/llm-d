@@ -20,6 +20,8 @@ spec:
                 value: "1"
               - name: VLLM_USE_RUST_FRONTEND
                 value: "1"
+              - name: HF_HUB_OFFLINE
+                value: "1"
               # Block-hash seed shared with the EPP's token processor
               # (tokenProcessorConfig.hashSeed) so the precise prefix index
               # matches request keys against engine-published block hashes.
