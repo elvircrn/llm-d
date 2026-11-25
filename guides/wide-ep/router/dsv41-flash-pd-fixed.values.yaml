@@ -29,13 +29,13 @@ router:
             modelName: deepseek-ai/DeepSeek-V4.1-Flash
             vllm:
               url: "http://dsv41-flash-render:8000"
-            prefixCache:
-              enabled: true
-              maxEntries: 8192
-              maxBytes: 536870912
-              asyncWarm:
-                concurrency: 16
-                timeout: "30s"
+              prefixCache:
+                enabled: true
+                maxEntries: 8192
+                maxBytes: 536870912
+                asyncWarm:
+                  concurrency: 16
+                  timeout: "30s"
         - type: endpoint-notification-source
         - type: metrics-data-source
           parameters: {scheme: "http", path: "/metrics", insecureSkipVerify: true}
