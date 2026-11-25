@@ -25,7 +25,7 @@ router:
     # EPP is OOMKilled mid-sweep. 256Gi clears the full concurrency range.
     resources:
       requests:
-        cpu: "32"
+        cpu: "64"
         memory: 32Gi
       limits:
         memory: 256Gi
