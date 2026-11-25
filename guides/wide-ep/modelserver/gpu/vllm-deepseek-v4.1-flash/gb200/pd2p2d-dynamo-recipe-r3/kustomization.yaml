@@ -1,0 +1,10 @@
+# Four-node recipe variant: two prefill replicas and a two-pod decode
+# group (16 GPUs), for capacity windows that cannot fit the 3P+4D or
+# 2P+4D layouts. Decode span shrinks to size 2; concurrency and engine
+# args are unchanged from the recipe base.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../pd2p1d-dynamo-recipe-r3
+patches:
+  - path: decode-span-2.yaml
