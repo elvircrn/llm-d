@@ -1,0 +1,223 @@
+# DSV4.1-Flash P/D router with the production admission-control and
+# decode-affinity architecture, adapted for the benchmark deployment:
+# EPP-level flow control keeps queues out of the engines, decode-side KV
+# events feed a decode prefix index plus accurate prefill-load release,
+# session affinity pins each conversation's decode leg to the pod holding
+# its KV, and the token-producer keeps the PR 4569 render cache.
+# Skipped (engine image lacks support): p2p-source-producer,
+# forward-prompt-token-ids, multi-replica peer sync.
+router:
+  epp:
+    image:
+      registry: "quay.io"
+      repository: "rh-ee-ecrncevi/llm-d"
+      tag: "epp-pr4569"
+    flags:
+      allow-experimental-plugins: true
+    pluginsConfigFile: "dsv41-flash-pd-session-config.yaml"
+    pluginsCustomConfig:
+      dsv41-flash-pd-session-config.yaml: |
+        apiVersion: llm-d.ai/v1alpha1
+        kind: EndpointPickerConfig
+        plugins:
+        - type: always-disagg-pd-decider
+        - type: disagg-profile-handler
+          parameters:
+            deciders:
+              prefill: always-disagg-pd-decider
+        - type: token-producer
+          parameters:
+            modelName: deepseek-ai/DeepSeek-V4.1-Flash
+            vllm:
+              endpointDiscovery:
+                portRules:
+                  - selector: {matchLabels: {llm-d.ai/role: prefill}}
+                    basePort: 8000
+                  - selector: {matchLabels: {llm-d.ai/role: decode}}
+                    basePort: 8200
+                loadBalancer: {type: round-robin}
+                attemptTimeout: 10s
+              prefixCache:
+                enabled: true
+                maxEntries: 8192
+                maxBytes: 4294967296
+                asyncWarm:
+                  concurrency: 16
+                  timeout: "30s"
+        - type: endpoint-notification-source
+        - type: metrics-data-source
+          parameters: {scheme: "http", path: "/metrics", insecureSkipVerify: true}
+        - type: core-metrics-extractor
+        - type: inflight-load-producer
+          parameters:
+            prefixMatchInfoProducerName: precise-prefix-cache-producer
+        - type: precise-prefix-cache-producer
+          parameters:
+            indexerConfig:
+              kvBlockIndexConfig:
+                enableMetrics: true
+                inMemoryConfig:
+                  # 12 prefill ranks x ~330K GPU blocks; headroom for the
+                  # CPU tier. Larger than the default to hold the warm
+                  # conversation tree's working set.
+                  size: 16000000
+                  podCacheSize: 1024
+              kvCacheBackendConfigs:
+              - name: gpu
+                weight: 1.0
+              - name: cpu
+                weight: 0.7
+            tokenProcessorConfig:
+              blockSizeTokens: 64
+              # Must equal the serving pods' PYTHONHASHSEED or the precise
+              # index keys never match engine-published block hashes.
+              hashSeed: "0"
+            speculativeIndexing: false
+            kvEventsConfig:
+              topicFilter: "kv@"
+              concurrency: 8
+              discoverPods: true
+              podDiscoveryConfig:
+                socketPort: 5556
+        - type: kv-events-source
+          name: decode-kv-events
+          parameters:
+            topicFilter: "kv@"
+            concurrency: 64
+            discoverPods: true
+            podDiscoveryConfig:
+              socketPort: 5557
+        - type: precise-prefix-cache-producer
+          name: decode-prefix-producer
+          parameters:
+            tokenProcessorConfig:
+              blockSizeTokens: 64
+              hashSeed: "0"
+            speculativeIndexing: false
+            indexerConfig:
+              kvBlockIndexConfig:
+                enableMetrics: true
+                inMemoryConfig:
+                  size: 16000000
+                  podCacheSize: 1024
+              kvCacheBackendConfigs:
+              - name: gpu
+                weight: 1.0
+            kvEventsConfig:
+              topicFilter: "kv@"
+              concurrency: 64
+              discoverPods: true
+              podDiscoveryConfig:
+                socketPort: 5557
+        - type: prefix-cache-scorer
+          name: decode-prefix-scorer
+          parameters:
+            prefixMatchInfoProducerName: decode-prefix-producer
+        - type: session-affinity-scorer
+          name: decode-session-affinity
+          parameters:
+            strategy: session_id
+            sessionIdConfig:
+              sources:
+                - header: X-Correlation-ID
+            # Pin the decode leg: the pod that served the session's earlier
+            # turns already holds its KV.
+            profileName: decode
+        - type: prefill-filter
+        - type: decode-filter
+        - type: prefix-cache-affinity-filter
+          parameters:
+            prefixMatchInfoProducerName: precise-prefix-cache-producer
+            affinityThreshold: 0.60
+            maxTTFTPenaltyMs: 30000
+            peakPrefillThroughput: 60000
+        - type: token-load-scorer
+        - type: active-request-scorer
+        - type: max-score-picker
+        - type: concurrency-detector
+          name: prefill-concurrency-guard
+          parameters:
+            concurrencyMode: hybrid
+            maxConcurrency: 24
+            maxTokenConcurrency: 4000000
+            headroom: 0.5
+            inFlightLoadProducerName: inflight-load-producer
+            failOpen: false
+        - type: concurrency-detector
+          name: decode-concurrency
+          parameters:
+            concurrencyMode: requests
+            maxConcurrency: 48
+            headroom: 0
+            inFlightLoadProducerName: inflight-load-producer
+            failOpen: false
+        - type: utilization-detector
+          name: prefill-queue
+          parameters:
+            queueDepthThreshold: 4
+            kvCacheUtilThreshold: 1.0
+            metricsStalenessThreshold: 1s
+            # No producer: scrape-lag credit over-counts P/D prefill load.
+            inFlightLoadProducerName: no-scrape-lag-credit
+        - type: max-saturation-detector
+          name: admission-split
+          parameters:
+            detectors: [decode-concurrency, prefill-queue, prefill-concurrency-guard]
+            stages:
+              decode-concurrency: [decode]
+              prefill-queue: [prefill]
+              prefill-concurrency-guard: [prefill]
+        - type: round-robin-fairness-policy
+        - type: fcfs-ordering-policy
+        - type: priority-holdback-policy
+          name: shared-capacity
+          parameters:
+            shape: linear
+            domain: value
+            minCeiling: 0.75
+            maxCeiling: 1.0
+        dataLayer:
+          sources:
+            - pluginRef: metrics-data-source
+              extractors:
+                - pluginRef: core-metrics-extractor
+            - pluginRef: endpoint-notification-source
+              extractors:
+                - pluginRef: precise-prefix-cache-producer
+            - pluginRef: decode-kv-events
+              extractors:
+                - pluginRef: inflight-load-producer
+        schedulingProfiles:
+        - name: prefill
+          plugins:
+          - pluginRef: prefill-filter
+          - pluginRef: prefill-concurrency-guard
+          - pluginRef: prefix-cache-affinity-filter
+          - pluginRef: token-load-scorer
+          - pluginRef: max-score-picker
+        - name: decode
+          plugins:
+          - pluginRef: decode-filter
+          - pluginRef: decode-concurrency
+          - pluginRef: decode-session-affinity
+          - pluginRef: decode-prefix-scorer
+          - pluginRef: active-request-scorer
+          - pluginRef: max-score-picker
+        featureGates:
+        - flowControl
+        flowControl:
+          enableEviction: false
+          defaultRequestTTL: 900s
+          maxBytes: 4294967296
+          defaultPriorityBand:
+            maxRequests: 100000
+            fairnessPolicyRef: round-robin-fairness-policy
+            orderingPolicyRef: fcfs-ordering-policy
+          priorityBands:
+          - priority: 0
+            maxRequests: 100000
+            fairnessPolicyRef: round-robin-fairness-policy
+            orderingPolicyRef: fcfs-ordering-policy
+          saturationDetector:
+            pluginRef: admission-split
+          usageLimitPolicyPluginRef: shared-capacity
