@@ -11,7 +11,7 @@ router:
     image:
       registry: "quay.io"
       repository: "rh-ee-ecrncevi/llm-d"
-      tag: "epp-pr4569"
+      tag: "epp-041rb"
     flags:
       allow-experimental-plugins: true
     pluginsConfigFile: "dsv41-flash-pd-session-config.yaml"
