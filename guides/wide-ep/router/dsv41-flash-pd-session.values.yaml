@@ -1,224 +1,72 @@
-# DSV4.1-Flash P/D router with the production admission-control and
-# decode-affinity architecture, adapted for the benchmark deployment:
-# EPP-level flow control keeps queues out of the engines, decode-side KV
-# events feed a decode prefix index plus accurate prefill-load release,
-# session affinity pins each conversation's decode leg to the pod holding
-# its KV, and the token-producer keeps the PR 4569 render cache.
-# Skipped (engine image lacks support): p2p-source-producer,
-# forward-prompt-token-ids, multi-replica peer sync.
 router:
   epp:
     image:
-      registry: "quay.io"
-      repository: "rh-ee-ecrncevi/llm-d"
-      tag: "epp-041rb"
+      registry: quay.io
+      repository: rh-ee-ecrncevi/llm-d
+      tag: epp-041rb
     flags:
       allow-experimental-plugins: true
-    pluginsConfigFile: "dsv41-flash-pd-session-config.yaml"
+    pluginsConfigFile: dsv41-flash-pd-session-config.yaml
     pluginsCustomConfig:
-      dsv41-flash-pd-session-config.yaml: |
-        apiVersion: llm-d.ai/v1alpha1
-        kind: EndpointPickerConfig
-        plugins:
-        - type: always-disagg-pd-decider
-        - type: disagg-profile-handler
-          parameters:
-            deciders:
-              prefill: always-disagg-pd-decider
-        - type: token-producer
-          parameters:
-            modelName: deepseek-ai/DeepSeek-V4.1-Flash
-            vllm:
-              endpointDiscovery:
-                portRules:
-                  - selector: {matchLabels: {llm-d.ai/role: prefill}}
-                    basePort: 8000
-                  - selector: {matchLabels: {llm-d.ai/role: decode}}
-                    basePort: 8200
-                loadBalancer: {type: round-robin}
-                attemptTimeout: 10s
-              prefixCache:
-                enabled: true
-                maxEntries: 8192
-                maxBytes: 4294967296
-                asyncWarm:
-                  concurrency: 16
-                  timeout: "30s"
-        - type: endpoint-notification-source
-        - type: metrics-data-source
-          parameters: {scheme: "http", path: "/metrics", insecureSkipVerify: true}
-        - type: core-metrics-extractor
-        - type: inflight-load-producer
-          parameters:
-            prefixMatchInfoProducerName: precise-prefix-cache-producer
-            # kvEventsSourceRef alone enables the decode-store release of a
-            # request's prefill load; the first response byte stays the
-            # fallback.
-            kvEventsSourceRef: decode-kv-events
-        - type: precise-prefix-cache-producer
-          parameters:
-            indexerConfig:
-              kvBlockIndexConfig:
-                enableMetrics: true
-                inMemoryConfig:
-                  # 12 prefill ranks x ~330K GPU blocks; headroom for the
-                  # CPU tier. Larger than the default to hold the warm
-                  # conversation tree's working set.
-                  size: 16000000
-                  podCacheSize: 1024
-              kvCacheBackendConfigs:
-              - name: gpu
-                weight: 1.0
-              - name: cpu
-                weight: 0.7
-            tokenProcessorConfig:
-              blockSizeTokens: 64
-              # Must equal the serving pods' PYTHONHASHSEED or the precise
-              # index keys never match engine-published block hashes.
-              hashSeed: "0"
-            speculativeIndexing: false
-            kvEventsConfig:
-              topicFilter: "kv@"
-              concurrency: 8
-              discoverPods: true
-              podDiscoveryConfig:
-                socketPort: 5556
-        # The kv-events-source owns the decode-side event transport; the
-        # inflight producer and decode prefix producer bind to it by ref
-        # (kvEventsSourceRef) instead of each opening subscriptions. It is
-        # an endpoint extractor, not a standalone datalayer source, so it
-        # must not appear in dataLayer.sources.
-        - type: kv-events-source
-          name: decode-kv-events
-          parameters:
-            topicFilter: "kv@"
-            concurrency: 64
-            discoverPods: true
-            podDiscoveryConfig:
-              socketPort: 5557
-        - type: precise-prefix-cache-producer
-          name: decode-prefix-producer
-          parameters:
-            kvEventsSourceRef: decode-kv-events
-            tokenProcessorConfig:
-              blockSizeTokens: 64
-              hashSeed: "0"
-            speculativeIndexing: false
-            indexerConfig:
-              kvBlockIndexConfig:
-                enableMetrics: true
-                inMemoryConfig:
-                  size: 16000000
-                  podCacheSize: 1024
-              kvCacheBackendConfigs:
-              - name: gpu
-                weight: 1.0
-        - type: prefix-cache-scorer
-          name: decode-prefix-scorer
-          parameters:
-            prefixMatchInfoProducerName: decode-prefix-producer
-        - type: session-affinity-scorer
-          name: decode-session-affinity
-          parameters:
-            strategy: session_id
-            sessionIdConfig:
-              sources:
-                - header: X-Correlation-ID
-            # Pin the decode leg: the pod that served the session's earlier
-            # turns already holds its KV.
-            profileName: decode
-        - type: prefill-filter
-        - type: decode-filter
-        - type: prefix-cache-affinity-filter
-          parameters:
-            prefixMatchInfoProducerName: precise-prefix-cache-producer
-            affinityThreshold: 0.60
-            maxTTFTPenaltyMs: 30000
-            peakPrefillThroughput: 60000
-        - type: token-load-scorer
-        - type: active-request-scorer
-        - type: max-score-picker
-        - type: concurrency-detector
-          name: prefill-concurrency-guard
-          parameters:
-            concurrencyMode: hybrid
-            maxConcurrency: 24
-            maxTokenConcurrency: 4000000
-            headroom: 0.5
-            inFlightLoadProducerName: inflight-load-producer
-            failOpen: false
-        - type: concurrency-detector
-          name: decode-concurrency
-          parameters:
-            concurrencyMode: requests
-            maxConcurrency: 48
-            headroom: 0
-            inFlightLoadProducerName: inflight-load-producer
-            failOpen: false
-        - type: utilization-detector
-          name: prefill-queue
-          parameters:
-            queueDepthThreshold: 4
-            kvCacheUtilThreshold: 1.0
-            metricsStalenessThreshold: 1s
-            # No producer: scrape-lag credit over-counts P/D prefill load.
-            inFlightLoadProducerName: no-scrape-lag-credit
-        - type: max-saturation-detector
-          name: admission-split
-          parameters:
-            detectors: [decode-concurrency, prefill-queue, prefill-concurrency-guard]
-            stages:
-              decode-concurrency: [decode]
-              prefill-queue: [prefill]
-              prefill-concurrency-guard: [prefill]
-        - type: round-robin-fairness-policy
-        - type: fcfs-ordering-policy
-        - type: priority-holdback-policy
-          name: shared-capacity
-          parameters:
-            shape: linear
-            domain: value
-            minCeiling: 0.75
-            maxCeiling: 1.0
-        dataLayer:
-          sources:
-            - pluginRef: metrics-data-source
-              extractors:
-                - pluginRef: core-metrics-extractor
-            - pluginRef: endpoint-notification-source
-              extractors:
-                - pluginRef: precise-prefix-cache-producer
-        schedulingProfiles:
-        - name: prefill
-          plugins:
-          - pluginRef: prefill-filter
-          - pluginRef: prefill-concurrency-guard
-          - pluginRef: prefix-cache-affinity-filter
-          - pluginRef: token-load-scorer
-          - pluginRef: max-score-picker
-        - name: decode
-          plugins:
-          - pluginRef: decode-filter
-          - pluginRef: decode-concurrency
-          - pluginRef: decode-session-affinity
-          - pluginRef: decode-prefix-scorer
-          - pluginRef: active-request-scorer
-          - pluginRef: max-score-picker
-        featureGates:
-        - flowControl
-        flowControl:
-          enableEviction: false
-          defaultRequestTTL: 900s
-          maxBytes: 4294967296
-          defaultPriorityBand:
-            maxRequests: 100000
-            fairnessPolicyRef: round-robin-fairness-policy
-            orderingPolicyRef: fcfs-ordering-policy
-          priorityBands:
-          - priority: 0
-            maxRequests: 100000
-            fairnessPolicyRef: round-robin-fairness-policy
-            orderingPolicyRef: fcfs-ordering-policy
-          saturationDetector:
-            pluginRef: admission-split
-          usageLimitPolicyPluginRef: shared-capacity
+      dsv41-flash-pd-session-config.yaml: "apiVersion: llm-d.ai/v1alpha1\nkind: EndpointPickerConfig\n\
+        plugins:\n- type: always-disagg-pd-decider\n- type: disagg-profile-handler\n\
+        \  parameters:\n    deciders:\n      prefill: always-disagg-pd-decider\n-\
+        \ type: token-producer\n  parameters:\n    modelName: deepseek-ai/DeepSeek-V4.1-Flash\n\
+        \    vllm:\n      endpointDiscovery:\n        portRules:\n        - selector:\n\
+        \            matchLabels:\n              llm-d.ai/role: prefill\n        \
+        \  basePort: 8000\n        - selector:\n            matchLabels:\n       \
+        \       llm-d.ai/role: decode\n          basePort: 8200\n        loadBalancer:\n\
+        \          type: round-robin\n        attemptTimeout: 10s\n      prefixCache:\n\
+        \        enabled: true\n        maxEntries: 8192\n        maxBytes: 4294967296\n\
+        \        asyncWarm:\n          concurrency: 16\n          timeout: 30s\n-\
+        \ type: endpoint-notification-source\n- type: metrics-data-source\n  parameters:\n\
+        \    scheme: http\n    path: /metrics\n    insecureSkipVerify: true\n- type:\
+        \ core-metrics-extractor\n- type: inflight-load-producer\n  parameters:\n\
+        \    prefixMatchInfoProducerName: precise-prefix-cache-producer\n    kvEventsSourceRef:\
+        \ decode-kv-events\n- type: precise-prefix-cache-producer\n  parameters:\n\
+        \    indexerConfig:\n      kvBlockIndexConfig:\n        enableMetrics: true\n\
+        \        inMemoryConfig:\n          size: 16000000\n          podCacheSize:\
+        \ 1024\n      kvCacheBackendConfigs:\n      - name: gpu\n        weight: 1.0\n\
+        \      - name: cpu\n        weight: 0.7\n    tokenProcessorConfig:\n     \
+        \ blockSizeTokens: 64\n      hashSeed: '0'\n    speculativeIndexing: false\n\
+        \    kvEventsConfig:\n      topicFilter: kv@\n      concurrency: 8\n     \
+        \ discoverPods: true\n      podDiscoveryConfig:\n        socketPort: 5556\n\
+        - type: kv-events-source\n  name: decode-kv-events\n  parameters:\n    topicFilter:\
+        \ kv@\n    concurrency: 64\n    discoverPods: true\n    podDiscoveryConfig:\n\
+        \      socketPort: 5557\n- type: precise-prefix-cache-producer\n  name: decode-prefix-producer\n\
+        \  parameters:\n    kvEventsSourceRef: decode-kv-events\n    tokenProcessorConfig:\n\
+        \      blockSizeTokens: 64\n      hashSeed: '0'\n    speculativeIndexing:\
+        \ false\n    indexerConfig:\n      kvBlockIndexConfig:\n        enableMetrics:\
+        \ true\n        inMemoryConfig:\n          size: 16000000\n          podCacheSize:\
+        \ 1024\n      kvCacheBackendConfigs:\n      - name: gpu\n        weight: 1.0\n\
+        - type: prefix-cache-scorer\n  name: decode-prefix-scorer\n  parameters:\n\
+        \    prefixMatchInfoProducerName: decode-prefix-producer\n- type: session-affinity-scorer\n\
+        \  name: decode-session-affinity\n  parameters:\n    strategy: session_id\n\
+        \    sessionIdConfig:\n      sources:\n      - header: X-Correlation-ID\n\
+        \    profileName: decode\n- type: prefill-filter\n- type: decode-filter\n\
+        - type: prefix-cache-affinity-filter\n  parameters:\n    prefixMatchInfoProducerName:\
+        \ precise-prefix-cache-producer\n    affinityThreshold: 0.6\n    maxTTFTPenaltyMs:\
+        \ 30000\n    peakPrefillThroughput: 60000\n- type: token-load-scorer\n- type:\
+        \ active-request-scorer\n- type: max-score-picker\n- type: concurrency-detector\n\
+        \  name: prefill-concurrency-guard\n  parameters:\n    concurrencyMode: hybrid\n\
+        \    maxConcurrency: 24\n    maxTokenConcurrency: 4000000\n    headroom: 0.5\n\
+        \    inFlightLoadProducerName: inflight-load-producer\n    failOpen: false\n\
+        - type: concurrency-detector\n  name: decode-concurrency\n  parameters:\n\
+        \    concurrencyMode: requests\n    maxConcurrency: 48\n    headroom: 0\n\
+        \    inFlightLoadProducerName: inflight-load-producer\n    failOpen: false\n\
+        - type: utilization-detector\n  name: prefill-queue\n  parameters:\n    queueDepthThreshold:\
+        \ 4\n    kvCacheUtilThreshold: 1.0\n    metricsStalenessThreshold: 1s\n  \
+        \  inFlightLoadProducerName: no-scrape-lag-credit\n- type: max-saturation-detector\n\
+        \  name: admission-split\n  parameters:\n    detectors:\n    - decode-concurrency\n\
+        \    - prefill-queue\n    - prefill-concurrency-guard\n    stages:\n     \
+        \ decode-concurrency:\n      - decode\n      prefill-queue:\n      - prefill\n\
+        \      prefill-concurrency-guard:\n      - prefill\ndataLayer:\n  sources:\n\
+        \  - pluginRef: metrics-data-source\n    extractors:\n    - pluginRef: core-metrics-extractor\n\
+        \  - pluginRef: endpoint-notification-source\n    extractors:\n    - pluginRef:\
+        \ precise-prefix-cache-producer\nschedulingProfiles:\n- name: prefill\n  plugins:\n\
+        \  - pluginRef: prefill-filter\n  - pluginRef: prefill-concurrency-guard\n\
+        \  - pluginRef: prefix-cache-affinity-filter\n  - pluginRef: token-load-scorer\n\
+        \  - pluginRef: max-score-picker\n- name: decode\n  plugins:\n  - pluginRef:\
+        \ decode-filter\n  - pluginRef: decode-concurrency\n  - pluginRef: decode-session-affinity\n\
+        \  - pluginRef: decode-prefix-scorer\n  - pluginRef: active-request-scorer\n\
+        \  - pluginRef: max-score-picker\n"
