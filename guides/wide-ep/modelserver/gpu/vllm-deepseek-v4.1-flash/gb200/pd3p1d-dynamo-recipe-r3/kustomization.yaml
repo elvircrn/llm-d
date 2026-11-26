@@ -13,4 +13,3 @@ resources:
 patches:
   - path: prefill-recipe-env.yaml
   - path: decode-recipe-env.yaml
-  - path: resources-120.yaml
