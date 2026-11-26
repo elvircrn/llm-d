@@ -51,10 +51,10 @@ router:
         - type: inflight-load-producer
           parameters:
             prefixMatchInfoProducerName: precise-prefix-cache-producer
-            # Release a request's prefill load when the decode engine
-            # stores the prompt's last block.
+            # kvEventsSourceRef alone enables the decode-store release of a
+            # request's prefill load; the first response byte stays the
+            # fallback.
             kvEventsSourceRef: decode-kv-events
-            prefillCompletionFromKVEvents: true
         - type: precise-prefix-cache-producer
           parameters:
             indexerConfig:
