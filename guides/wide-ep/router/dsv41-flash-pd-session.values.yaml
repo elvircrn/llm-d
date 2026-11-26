@@ -51,6 +51,10 @@ router:
         - type: inflight-load-producer
           parameters:
             prefixMatchInfoProducerName: precise-prefix-cache-producer
+            # Release a request's prefill load when the decode engine
+            # stores the prompt's last block.
+            kvEventsSourceRef: decode-kv-events
+            prefillCompletionFromKVEvents: true
         - type: precise-prefix-cache-producer
           parameters:
             indexerConfig:
@@ -79,6 +83,11 @@ router:
               discoverPods: true
               podDiscoveryConfig:
                 socketPort: 5556
+        # The kv-events-source owns the decode-side event transport; the
+        # inflight producer and decode prefix producer bind to it by ref
+        # (kvEventsSourceRef) instead of each opening subscriptions. It is
+        # an endpoint extractor, not a standalone datalayer source, so it
+        # must not appear in dataLayer.sources.
         - type: kv-events-source
           name: decode-kv-events
           parameters:
@@ -90,6 +99,7 @@ router:
         - type: precise-prefix-cache-producer
           name: decode-prefix-producer
           parameters:
+            kvEventsSourceRef: decode-kv-events
             tokenProcessorConfig:
               blockSizeTokens: 64
               hashSeed: "0"
@@ -103,12 +113,6 @@ router:
               kvCacheBackendConfigs:
               - name: gpu
                 weight: 1.0
-            kvEventsConfig:
-              topicFilter: "kv@"
-              concurrency: 64
-              discoverPods: true
-              podDiscoveryConfig:
-                socketPort: 5557
         - type: prefix-cache-scorer
           name: decode-prefix-scorer
           parameters:
@@ -184,9 +188,6 @@ router:
             - pluginRef: endpoint-notification-source
               extractors:
                 - pluginRef: precise-prefix-cache-producer
-            - pluginRef: decode-kv-events
-              extractors:
-                - pluginRef: inflight-load-producer
         schedulingProfiles:
         - name: prefill
           plugins:
