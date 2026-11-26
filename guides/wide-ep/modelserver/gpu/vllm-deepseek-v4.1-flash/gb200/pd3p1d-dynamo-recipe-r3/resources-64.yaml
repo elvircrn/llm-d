@@ -12,12 +12,12 @@ spec:
               requests:
                 cpu: "64"
                 ephemeral-storage: 256Gi
-                memory: 448Gi
+                memory: 512Gi
                 nvidia.com/gpu: "4"
               limits:
                 cpu: "64"
                 ephemeral-storage: 256Gi
-                memory: 448Gi
+                memory: 512Gi
                 nvidia.com/gpu: "4"
 ---
 apiVersion: leaderworkerset.x-k8s.io/v1
@@ -34,10 +34,10 @@ spec:
               requests:
                 cpu: "64"
                 ephemeral-storage: 256Gi
-                memory: 448Gi
+                memory: 512Gi
                 nvidia.com/gpu: "4"
               limits:
                 cpu: "64"
                 ephemeral-storage: 256Gi
-                memory: 448Gi
+                memory: 512Gi
                 nvidia.com/gpu: "4"
