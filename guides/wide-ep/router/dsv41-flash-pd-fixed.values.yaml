@@ -67,7 +67,11 @@ router:
               # Must equal the serving pods' PYTHONHASHSEED or the precise
               # index keys never match engine-published block hashes.
               hashSeed: "0"
-            speculativeIndexing: true
+            # Speculative rows credit the scheduled pod for 2s and are
+            # lease-refreshed by follow-on routing; with fast renders the
+            # scheduler decisions fall inside that window and one endpoint's
+            # uncached-token discount monopolizes the picker (warmup pin).
+            speculativeIndexing: false
             kvEventsConfig:
               topicFilter: "kv@"
               concurrency: 8
