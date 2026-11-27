@@ -3,7 +3,7 @@ router:
     image:
       registry: quay.io
       repository: rh-ee-ecrncevi/llm-d
-      tag: epp-041rb
+      tag: epp-d33b997b
     flags:
       allow-experimental-plugins: true
     pluginsConfigFile: dsv41-flash-pd-session-config.yaml
