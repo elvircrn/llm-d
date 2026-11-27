@@ -47,26 +47,12 @@ router:
         - type: prefix-cache-affinity-filter\n  parameters:\n    prefixMatchInfoProducerName:\
         \ precise-prefix-cache-producer\n    affinityThreshold: 0.6\n    maxTTFTPenaltyMs:\
         \ 30000\n    peakPrefillThroughput: 60000\n- type: token-load-scorer\n- type:\
-        \ active-request-scorer\n- type: max-score-picker\n- type: concurrency-detector\n\
-        \  name: prefill-concurrency-guard\n  parameters:\n    concurrencyMode: hybrid\n\
-        \    maxConcurrency: 24\n    maxTokenConcurrency: 4000000\n    headroom: 0.5\n\
-        \    inFlightLoadProducerName: inflight-load-producer\n    failOpen: false\n\
-        - type: concurrency-detector\n  name: decode-concurrency\n  parameters:\n\
-        \    concurrencyMode: requests\n    maxConcurrency: 48\n    headroom: 0\n\
-        \    inFlightLoadProducerName: inflight-load-producer\n    failOpen: false\n\
-        - type: utilization-detector\n  name: prefill-queue\n  parameters:\n    queueDepthThreshold:\
-        \ 4\n    kvCacheUtilThreshold: 1.0\n    metricsStalenessThreshold: 1s\n  \
-        \  inFlightLoadProducerName: no-scrape-lag-credit\n- type: max-saturation-detector\n\
-        \  name: admission-split\n  parameters:\n    detectors:\n    - decode-concurrency\n\
-        \    - prefill-queue\n    - prefill-concurrency-guard\n    stages:\n     \
-        \ decode-concurrency:\n      - decode\n      prefill-queue:\n      - prefill\n\
-        \      prefill-concurrency-guard:\n      - prefill\ndataLayer:\n  sources:\n\
+        \ active-request-scorer\n- type: max-score-picker\ndataLayer:\n  sources:\n\
         \  - pluginRef: metrics-data-source\n    extractors:\n    - pluginRef: core-metrics-extractor\n\
         \  - pluginRef: endpoint-notification-source\n    extractors:\n    - pluginRef:\
         \ precise-prefix-cache-producer\nschedulingProfiles:\n- name: prefill\n  plugins:\n\
-        \  - pluginRef: prefill-filter\n  - pluginRef: prefill-concurrency-guard\n\
-        \  - pluginRef: prefix-cache-affinity-filter\n  - pluginRef: token-load-scorer\n\
-        \  - pluginRef: max-score-picker\n- name: decode\n  plugins:\n  - pluginRef:\
-        \ decode-filter\n  - pluginRef: decode-concurrency\n  - pluginRef: decode-session-affinity\n\
+        \  - pluginRef: prefill-filter\n  - pluginRef: prefix-cache-affinity-filter\n\
+        \  - pluginRef: token-load-scorer\n  - pluginRef: max-score-picker\n- name:\
+        \ decode\n  plugins:\n  - pluginRef: decode-filter\n  - pluginRef: decode-session-affinity\n\
         \  - pluginRef: decode-prefix-scorer\n  - pluginRef: active-request-scorer\n\
         \  - pluginRef: max-score-picker\n"
