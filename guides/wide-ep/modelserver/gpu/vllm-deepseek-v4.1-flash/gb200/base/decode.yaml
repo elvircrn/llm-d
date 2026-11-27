@@ -51,12 +51,17 @@ spec:
               - --model-server-port=8200
               - --data-parallel-size=4
               - --kv-connector=nixlv2
+              # Without the p2p pull the sidecar replaces the prefill
+              # request's kv_transfer_params and drops the router's
+              # remote_kv_source, so prefill recomputes every prefix a
+              # peer holds (guides/p2p-kv-cache-sharing, llm-d-router#3441).
+              - --enable-p2p-pull
               # Prefill 5xx are transient conn races; retry before failing the
               # client request.
               - --prefill-max-retries=3
               - --zap-log-level=1
               - --secure-proxy=false
-            image: ghcr.io/llm-d/llm-d-router-disagg-sidecar:v0.11.0
+            image: quay.io/rh-ee-ecrncevi/llm-d:sidecar-d33b997b
             imagePullPolicy: IfNotPresent
             ports:
               - containerPort: 8000
