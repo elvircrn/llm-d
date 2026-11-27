@@ -9,9 +9,12 @@ spec:
         containers:
           - name: vllm
             env:
-              # Same role as in the fixed overlay: keep the base's
-              # kv-events-config append off; the corrected endpoint rides in
-              # VLLM_EXTRA_ARGS.
+              # The p2p mode needs a vLLM build carrying the notif guard
+              # (elvircrn/vllm p2p-notif-guard): the second in-process NIXL
+              # agent can deliver a garbled notification into the
+              # NixlConnector pull worker, whose unguarded UTF-8 decode
+              # killed the engine 60s into first traffic. The campaign JSON
+              # supplies that build; without it this mode is unrunnable.
               - name: OFFLOADING_MODE
                 value: "p2p"
               - name: NCCL_CUMEM_ENABLE
