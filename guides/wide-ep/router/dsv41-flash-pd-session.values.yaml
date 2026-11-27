@@ -30,18 +30,14 @@ router:
         \ blockSizeTokens: 64\n      hashSeed: '0'\n    speculativeIndexing: false\n\
         \    kvEventsConfig:\n      topicFilter: kv@\n      concurrency: 8\n     \
         \ discoverPods: true\n      podDiscoveryConfig:\n        socketPort: 5556\n\
-        - type: session-affinity-scorer\n  name: decode-session-affinity\n  parameters:\n\
-        \    strategy: session_id\n    sessionIdConfig:\n      sources:\n      - header:\
-        \ X-Correlation-ID\n    profileName: decode\n- type: prefill-filter\n- type:\
-        \ decode-filter\n- type: prefix-cache-affinity-filter\n  parameters:\n   \
-        \ prefixMatchInfoProducerName: precise-prefix-cache-producer\n    affinityThreshold:\
-        \ 0.6\n    maxTTFTPenaltyMs: 30000\n    peakPrefillThroughput: 60000\n- type:\
-        \ token-load-scorer\n- type: active-request-scorer\n- type: max-score-picker\n\
-        dataLayer:\n  sources:\n  - pluginRef: metrics-data-source\n    extractors:\n\
-        \    - pluginRef: core-metrics-extractor\n  - pluginRef: endpoint-notification-source\n\
-        \    extractors:\n    - pluginRef: precise-prefix-cache-producer\nschedulingProfiles:\n\
-        - name: prefill\n  plugins:\n  - pluginRef: prefill-filter\n  - pluginRef:\
-        \ prefix-cache-affinity-filter\n  - pluginRef: token-load-scorer\n  - pluginRef:\
-        \ max-score-picker\n- name: decode\n  plugins:\n  - pluginRef: decode-filter\n\
-        \  - pluginRef: decode-session-affinity\n  - pluginRef: active-request-scorer\n\
-        \  - pluginRef: max-score-picker\n"
+        - type: prefill-filter\n- type: decode-filter\n- type: prefix-cache-affinity-filter\n\
+        \  parameters:\n    prefixMatchInfoProducerName: precise-prefix-cache-producer\n\
+        \    affinityThreshold: 0.6\n    maxTTFTPenaltyMs: 30000\n    peakPrefillThroughput:\
+        \ 60000\n- type: token-load-scorer\n- type: active-request-scorer\n- type:\
+        \ max-score-picker\ndataLayer:\n  sources:\n  - pluginRef: metrics-data-source\n\
+        \    extractors:\n    - pluginRef: core-metrics-extractor\n  - pluginRef:\
+        \ endpoint-notification-source\n    extractors:\n    - pluginRef: precise-prefix-cache-producer\n\
+        schedulingProfiles:\n- name: prefill\n  plugins:\n  - pluginRef: prefill-filter\n\
+        \  - pluginRef: prefix-cache-affinity-filter\n  - pluginRef: token-load-scorer\n\
+        \  - pluginRef: max-score-picker\n- name: decode\n  plugins:\n  - pluginRef:\
+        \ decode-filter\n  - pluginRef: active-request-scorer\n  - pluginRef: max-score-picker\n"
