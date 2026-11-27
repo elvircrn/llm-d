@@ -121,13 +121,21 @@ spec:
                                             }}]}}'
                     ;;
                   p2p)
+                    # The NixlConnector must stay in push mode: without
+                    # transfer_mode the prefill runs the pull worker, whose
+                    # notif poll cannot parse the decode side's PUSH_REG
+                    # msgpack and drops or crashes on it.
                     KV_TRANSFER_CONFIG='{"kv_connector":"MultiConnector",
                                           "kv_role":"kv_both",
                                           "kv_load_failure_policy":"fail",
                                           "kv_connector_extra_config":{
                                             "connectors":[
                                               {"kv_connector":"NixlConnector","kv_role":"kv_both",
-                                               "kv_connector_extra_config":{"kv_lease_duration":600}},
+                                               "kv_load_failure_policy":"fail",
+                                               "kv_buffer_device":"cuda",
+                                               "kv_connector_extra_config":{"transfer_mode":"push",
+                                                 "backends":["UCX"],"enforce_handshake_compat":false,
+                                                 "kv_lease_duration":120}},
                                               {"kv_connector":"OffloadingConnector","kv_role":"kv_both",
                                                "kv_connector_extra_config":{
                                                  "spec_name":"TieringOffloadingSpec",
