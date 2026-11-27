@@ -6075,31 +6075,25 @@
  "templating": {
   "list": [
    {
-    "allValue": ".*",
+    "name": "deployment",
+    "type": "custom",
+    "query": "wide-ep-dsv41-flash",
     "current": {
      "selected": true,
      "text": "wide-ep-dsv41-flash",
      "value": "wide-ep-dsv41-flash"
     },
-    "datasource": {
-     "type": "prometheus",
-     "uid": "PBFA97CFB590B2093"
-    },
-    "definition": "label_values(vllm:num_requests_running, pod)",
+    "options": [
+     {
+      "selected": true,
+      "text": "wide-ep-dsv41-flash",
+      "value": "wide-ep-dsv41-flash"
+     }
+    ],
     "includeAll": false,
+    "multi": false,
     "label": "Deployment",
-    "name": "deployment",
-    "options": [],
-    "query": {
-     "qryType": 1,
-     "query": "label_values(vllm:num_requests_running, pod)",
-     "refId": "PrometheusVariableQueryEditor-VariableQuery"
-    },
-    "refresh": 2,
-    "regex": "/^(?P<text>wide-ep-.+)-(?:prefill|decode)-.*$/",
-    "sort": 1,
-    "type": "query",
-    "multi": false
+    "hide": 0
    }
   ]
  },
