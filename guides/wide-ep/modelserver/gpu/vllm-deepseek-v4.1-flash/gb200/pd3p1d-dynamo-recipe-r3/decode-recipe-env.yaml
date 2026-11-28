@@ -19,6 +19,10 @@ spec:
                 value: "1"
               - name: PYTHONHASHSEED
                 value: "0"
+              # Contiguous GPU KV block runs for the P/D NIXL push; needs
+              # the contig-alloc-port vLLM build in the campaign JSON.
+              - name: VLLM_KV_CONTIG_ALLOC
+                value: "1"
               # Dynamo 448125 allocates 300GB of DRAM on the decode worker
               # too (decode_allocated_cpu_dram_gb); without a CPU tier our
               # decode holds nothing between turns, so every continuation
