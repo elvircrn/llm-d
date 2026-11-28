@@ -9,14 +9,14 @@ spec:
         containers:
           - name: vllm
             env:
-              # The p2p mode needs a vLLM build carrying the notif guard
-              # (elvircrn/vllm p2p-notif-guard): the second in-process NIXL
-              # agent can deliver a garbled notification into the
-              # NixlConnector pull worker, whose unguarded UTF-8 decode
-              # killed the engine 60s into first traffic. The campaign JSON
-              # supplies that build; without it this mode is unrunnable.
+              # A/B against 044: same TieringOffloadingSpec and
+              # self-describing events, no p2p secondary tier and no
+              # router-driven pulls (the session values drop the producer).
+              # 044 ran 3 of 12 ranks at 1/7-1/2 the fleet's prefill
+              # throughput with queues to 1,284; this run isolates whether
+              # the p2p tier's serving path is that cost.
               - name: OFFLOADING_MODE
-                value: "p2p"
+                value: "cpu"
               - name: NCCL_CUMEM_ENABLE
                 value: "1"
               - name: VLLM_RANDOMIZE_DP_DUMMY_INPUTS
@@ -33,4 +33,4 @@ spec:
               - name: KV_OFFLOAD_CPU_BYTES
                 value: "80530636800"
               - name: VLLM_EXTRA_ARGS
-                value: "--max-num-seqs 64 --max-num-batched-tokens 32768 --prefill-schedule-interval 2 --prefix-cache-retention-interval 32768 --gpu-memory-utilization 0.90 --engram-config {\"cpu_offload\":true,\"embedding_across_dp\":true,\"use_thp\":false}  --kv-events-config {\"enable_kv_cache_events\":true,\"publisher\":\"zmq\",\"endpoint\":\"tcp://*:5556\",\"topic\":\"kv@$(POD_IP):5556@deepseek-ai/DeepSeek-V4.1-Flash\"} --compilation-config {\"mode\":\"VLLM_COMPILE\",\"cudagraph_mode\":\"FULL_AND_PIECEWISE\",\"cudagraph_capture_sizes\":[6,12,18,24,30,36,48,60,72,96,120,144,192,240,288,384,480,576,768,1020,1536,2046],\"decoder_replay_cudagraph_capture_sizes\":[6,12,18,24,30,36,48,60,72,96,120,144,192,240,288,384,480,576,768,1020,1536,2046,2048],\"max_cudagraph_capture_size\":2046}"
+                value: "--max-num-seqs 64 --max-num-batched-tokens 32768 --prefill-schedule-interval 2 --prefix-cache-retention-interval 32768 --gpu-memory-utilization 0.90 --engram-config {\"cpu_offload\":true,\"embedding_across_dp\":true,\"use_thp\":false} --kv-transfer-config {\"kv_connector\":\"MultiConnector\",\"kv_role\":\"kv_both\",\"kv_load_failure_policy\":\"fail\",\"kv_connector_extra_config\":{\"connectors\":[{\"kv_connector\":\"NixlConnector\",\"kv_role\":\"kv_both\",\"kv_load_failure_policy\":\"fail\",\"kv_buffer_device\":\"cuda\",\"kv_connector_extra_config\":{\"transfer_mode\":\"push\",\"backends\":[\"UCX\"],\"enforce_handshake_compat\":false,\"kv_lease_duration\":120}},{\"kv_connector\":\"OffloadingConnector\",\"kv_role\":\"kv_both\",\"kv_connector_extra_config\":{\"cpu_bytes_to_use\":80530636800,\"eviction_policy\":\"lru\",\"self_describing_kv_events\":true}}]}} --kv-events-config {\"enable_kv_cache_events\":true,\"publisher\":\"zmq\",\"endpoint\":\"tcp://*:5556\",\"topic\":\"kv@$(POD_IP):5556@deepseek-ai/DeepSeek-V4.1-Flash\"} --compilation-config {\"mode\":\"VLLM_COMPILE\",\"cudagraph_mode\":\"FULL_AND_PIECEWISE\",\"cudagraph_capture_sizes\":[6,12,18,24,30,36,48,60,72,96,120,144,192,240,288,384,480,576,768,1020,1536,2046],\"decoder_replay_cudagraph_capture_sizes\":[6,12,18,24,30,36,48,60,72,96,120,144,192,240,288,384,480,576,768,1020,1536,2046,2048],\"max_cudagraph_capture_size\":2046}"
