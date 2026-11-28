@@ -33,13 +33,8 @@ router:
         - type: prefill-filter\n- type: decode-filter\n- type: prefix-cache-affinity-filter\n\
         \  parameters:\n    prefixMatchInfoProducerName: precise-prefix-cache-producer\n\
         \    affinityThreshold: 0.6\n    maxTTFTPenaltyMs: 30000\n    peakPrefillThroughput:\
-        \ 60000\n    p2pSourceProducerName: p2p-source-producer\n- type: token-load-scorer\n\
-        - type: active-request-scorer\n- type: max-score-picker\n- type: p2p-source-producer\n\
-        \  name: p2p-source-producer\n  parameters:\n    prefixMatchInfoProducerName:\
-        \ precise-prefix-cache-producer\n    minCachedTokenDelta: 4096\n    prefillProfileName:\
-        \ prefill\n    costModel:\n      prefillMicrosecondsPerToken: 51\n      transferMicrosecondsPerToken:\
-        \ 1.3\n      transferFixedMs: 450\n      requeueMs: 400\n      fleetWeight:\
-        \ 1\ndataLayer:\n  sources:\n  - pluginRef: metrics-data-source\n    extractors:\n\
+        \ 60000\n- type: token-load-scorer\n\
+        - type: active-request-scorer\n- type: max-score-picker\ndataLayer:\n  sources:\n  - pluginRef: metrics-data-source\n    extractors:\n\
         \    - pluginRef: core-metrics-extractor\n  - pluginRef: endpoint-notification-source\n\
         \    extractors:\n    - pluginRef: precise-prefix-cache-producer\nschedulingProfiles:\n\
         - name: prefill\n  plugins:\n  - pluginRef: prefill-filter\n  - pluginRef:\
